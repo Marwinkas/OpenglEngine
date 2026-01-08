@@ -1,0 +1,44 @@
+﻿  Main.cpp
+C:\Users\Marwinka\Desktop\YoutubeOpenGL 26 - Shadow Maps (Spotlights & Point Lights)\Render.h(91,91): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+  (compiling source file 'Main.cpp')
+  
+C:\Users\Marwinka\Desktop\YoutubeOpenGL 26 - Shadow Maps (Spotlights & Point Lights)\Render.h(91,44): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+  (compiling source file 'Main.cpp')
+  
+C:\Users\Marwinka\Desktop\YoutubeOpenGL 26 - Shadow Maps (Spotlights & Point Lights)\Render.h(107,99): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+  (compiling source file 'Main.cpp')
+  
+C:\Users\Marwinka\Desktop\YoutubeOpenGL 26 - Shadow Maps (Spotlights & Point Lights)\Render.h(107,43): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+  (compiling source file 'Main.cpp')
+  
+C:\Users\Marwinka\Desktop\YoutubeOpenGL 26 - Shadow Maps (Spotlights & Point Lights)\Render.h(112,39): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+  (compiling source file 'Main.cpp')
+  
+C:\Users\Marwinka\Desktop\YoutubeOpenGL 26 - Shadow Maps (Spotlights & Point Lights)\UI.h(56,47): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data
+  (compiling source file 'Main.cpp')
+  
+C:\Users\Marwinka\Desktop\YoutubeOpenGL 26 - Shadow Maps (Spotlights & Point Lights)\UI.h(56,33): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data
+  (compiling source file 'Main.cpp')
+  
+C:\Users\Marwinka\Desktop\YoutubeOpenGL 26 - Shadow Maps (Spotlights & Point Lights)\UI.h(81,47): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data
+  (compiling source file 'Main.cpp')
+  
+C:\Users\Marwinka\Desktop\YoutubeOpenGL 26 - Shadow Maps (Spotlights & Point Lights)\UI.h(81,33): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data
+  (compiling source file 'Main.cpp')
+  
+glfw3.lib(input.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(input.obj)' or at ''; linking object as if no debug info
+glfw3.lib(init.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(init.obj)' or at ''; linking object as if no debug info
+glfw3.lib(monitor.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(monitor.obj)' or at ''; linking object as if no debug info
+glfw3.lib(window.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(window.obj)' or at ''; linking object as if no debug info
+glfw3.lib(win32_window.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(win32_window.obj)' or at ''; linking object as if no debug info
+glfw3.lib(context.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(context.obj)' or at ''; linking object as if no debug info
+glfw3.lib(win32_joystick.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(win32_joystick.obj)' or at ''; linking object as if no debug info
+glfw3.lib(win32_time.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(win32_time.obj)' or at ''; linking object as if no debug info
+glfw3.lib(win32_init.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(win32_init.obj)' or at ''; linking object as if no debug info
+glfw3.lib(win32_monitor.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(win32_monitor.obj)' or at ''; linking object as if no debug info
+glfw3.lib(win32_thread.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(win32_thread.obj)' or at ''; linking object as if no debug info
+glfw3.lib(vulkan.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(vulkan.obj)' or at ''; linking object as if no debug info
+glfw3.lib(wgl_context.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(wgl_context.obj)' or at ''; linking object as if no debug info
+glfw3.lib(egl_context.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(egl_context.obj)' or at ''; linking object as if no debug info
+glfw3.lib(osmesa_context.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(osmesa_context.obj)' or at ''; linking object as if no debug info
+  YoutubeOpenGL.vcxproj -> C:\Users\Marwinka\Desktop\YoutubeOpenGL 26 - Shadow Maps (Spotlights & Point Lights)\x64\Debug\YoutubeOpenGL.exe
