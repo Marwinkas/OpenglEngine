@@ -1,7 +1,0 @@
-{
-    "albedo": "../textures/diffuse2.png",
-    "ao": "../textures/ao2.png",
-    "metallic": "../textures/metallic2.png",
-    "normal": "../textures/normal2.png",
-    "roughness": "../textures/rougness2.png"
-}

@@ -1,4 +1,0 @@
-﻿# BurnHopeEngine Reloaded
-
-Переделанный на opengl старый движок BurnHopeEngine
-

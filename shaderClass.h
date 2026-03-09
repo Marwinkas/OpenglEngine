@@ -17,6 +17,7 @@ public:
 	GLuint ID;
 	Shader() {}
 	// Constructor that build the Shader Program from 2 different shaders
+	Shader(const char* computeFile);
 	Shader(const char* vertexFile, const char* fragmentFile);
 	Shader(const char* vertexFile, const char* fragmentFile, const char* geometryFile);
 

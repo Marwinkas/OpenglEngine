@@ -13,11 +13,11 @@ public:
 
 		glfwInit();
 
-		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
 		glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-		window = glfwCreateWindow(width, height, "YoutubeOpenGL", NULL, NULL);
+		window = glfwCreateWindow(width, height, "BurnHopeEngine", NULL, NULL);
 		if (window == NULL)
 		{
 			std::cout << "Failed to create GLFW window" << std::endl;
@@ -25,17 +25,18 @@ public:
 		}
 
 		glfwMakeContextCurrent(window);
-
+		glfwSwapInterval(0);
 		gladLoadGL();
 		glViewport(0, 0, width, height);
-
+		glfwWindowHint(GLFW_DEPTH_BITS, 24);
 		glEnable(GL_DEPTH_TEST);
 		glEnable(GL_MULTISAMPLE);
+		
 	}
 	GLFWwindow* window;
 	
-	int width = 1280;
-	int height = 720;
+	int width = 1920;
+	int height = 1080;
 };
 
 #endif

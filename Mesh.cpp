@@ -2,88 +2,61 @@
 
 Mesh::Mesh(std::vector <Vertex>& vertices, std::vector <GLuint>& indices)
 {
-	Mesh::vertices = vertices;
-	Mesh::indices = indices;
-	ID = meshid++;
-	
-	VAO.Bind();
-	// Generates Vertex Buffer Object and links it to vertices
-	VBO VBO(vertices);
-	// Generates Element Buffer Object and links it to indices
-	EBO EBO(indices);
-	// Links VBO attributes such as coordinates and colors to VAO
-	VAO.LinkAttrib(VBO, 0, 3, GL_FLOAT, sizeof(Vertex), (void*)0);
-	VAO.LinkAttrib(VBO, 1, 3, GL_FLOAT, sizeof(Vertex), (void*)(3 * sizeof(float)));
-	VAO.LinkAttrib(VBO, 2, 3, GL_FLOAT, sizeof(Vertex), (void*)(6 * sizeof(float)));
-	VAO.LinkAttrib(VBO, 3, 2, GL_FLOAT, sizeof(Vertex), (void*)(9 * sizeof(float)));
-	VAO.LinkAttrib(VBO, 4, 3, GL_FLOAT, sizeof(Vertex), (void*)(11 * sizeof(float)));
-	VAO.LinkAttrib(VBO, 5, 3, GL_FLOAT, sizeof(Vertex), (void*)(14 * sizeof(float))); // bitangentSign
+    Mesh::vertices = vertices;
+    Mesh::indices = indices;
+    ID = meshid++;
 
+    VAO.Bind();
+    // Generates Vertex Buffer Object and links it to vertices
+    VBO VBO(vertices);
+    // Generates Element Buffer Object and links it to indices
+    EBO EBO(indices);
 
-	GLuint instanceVBO;
-	glGenBuffers(1, &instanceVBO);
-	glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
-	glBufferData(GL_ARRAY_BUFFER, 1000 * sizeof(glm::mat4), nullptr, GL_DYNAMIC_DRAW);
+    // Links VBO attributes such as coordinates and colors to VAO
+    VAO.LinkAttrib(VBO, 0, 3, GL_FLOAT, sizeof(Vertex), (void*)0);
+    VAO.LinkAttrib(VBO, 1, 3, GL_FLOAT, sizeof(Vertex), (void*)(3 * sizeof(float)));
+    VAO.LinkAttrib(VBO, 2, 3, GL_FLOAT, sizeof(Vertex), (void*)(6 * sizeof(float)));
+    VAO.LinkAttrib(VBO, 3, 2, GL_FLOAT, sizeof(Vertex), (void*)(9 * sizeof(float)));
+    VAO.LinkAttrib(VBO, 4, 3, GL_FLOAT, sizeof(Vertex), (void*)(11 * sizeof(float)));
+    VAO.LinkAttrib(VBO, 5, 3, GL_FLOAT, sizeof(Vertex), (void*)(14 * sizeof(float))); // bitangentSign
 
-	std::size_t vec4Size = sizeof(glm::vec4);
-	for (int i = 0; i < 4; i++) {
-		glEnableVertexAttribArray(6 + i);
-		glVertexAttribPointer(6 + i, 4, GL_FLOAT, GL_FALSE,
-			sizeof(glm::mat4), (void*)(i * vec4Size));
-		glVertexAttribDivisor(6 + i, 1);
-	}
+    // --- НАСТРОЙКА ИНСТАНСИНГА (Локации 6, 7, 8, 9) ---
+    GLuint instanceVBO;
+    glGenBuffers(1, &instanceVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
 
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	
-	// Unbind all to prevent accidentally modifying them
-	VAO.Unbind();
-	VBO.Unbind();
-	EBO.Unbind();
-	VBOS = instanceVBO;
-}
+    // Выделяем память навсегда (с запасом на 10 000 объектов одного типа)
+    GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
+    glBufferStorage(GL_ARRAY_BUFFER, 10000 * sizeof(glm::mat4), nullptr, flags);
 
+    // Получаем портал в память
+    mappedInstanceVBO = glMapBufferRange(GL_ARRAY_BUFFER, 0, 10000 * sizeof(glm::mat4), flags);
 
-void Mesh::Draw
-(
-	Shader& shader, 
-	Camera& camera,
-	Transform& transform,
-	Material& material
-)
-{
-	// Bind shader to be able to access uniforms
-	shader.Activate();
-	VAO.Bind();
-	material.Activate(shader);
-	// Take care of the camera Matrix
-	glUniform3f(glGetUniformLocation(shader.ID, "camPos"), camera.Position.x, camera.Position.y, camera.Position.z);
-	camera.Matrix(shader, "camMatrix");
-	glm::mat4 matrix = glm::mat4(1.0f);
-	ImGuizmo::RecomposeMatrixFromComponents(glm::value_ptr(transform.position), glm::value_ptr(transform.rotation), glm::value_ptr(transform.scale),
-		glm::value_ptr(matrix));
+    std::size_t vec4Size = sizeof(glm::vec4);
+    for (int i = 0; i < 4; i++) {
+        glEnableVertexAttribArray(6 + i);
+        glVertexAttribPointer(6 + i, 4, GL_FLOAT, GL_FALSE,
+            sizeof(glm::mat4), (void*)(i * vec4Size));
+        glVertexAttribDivisor(6 + i, 1);
+    }
 
-	glUniformMatrix4fv(glGetUniformLocation(shader.ID, "model"), 1, GL_FALSE, glm::value_ptr(matrix));
+    // --- НАСТРОЙКА КОСТЕЙ ДЛЯ АНИМАЦИИ (Локации 10, 11) ---
+    // ВАЖНО: Снова привязываем основной VBO вершин, так как мы только что работали с instanceVBO!
+    VBO.Bind();
 
-	// Draw the actual mesh
-	glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
-}
+    // ID Костей (Location 10). Используем IPointer для целочисленных значений (INT)
+    glEnableVertexAttribArray(10);
+    glVertexAttribIPointer(10, 4, GL_INT, sizeof(Vertex), (void*)offsetof(Vertex, m_BoneIDs));
 
-void Mesh::DrawShadow(
-	Shader& shader,
-	Transform& transform
-)
-{
-	// Активируем шейдер для теней
-	shader.Activate();
-	VAO.Bind();
+    // Веса Костей (Location 11). Обычный Pointer для FLOAT
+    glEnableVertexAttribArray(11);
+    glVertexAttribPointer(11, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, m_Weights));
 
-	// Initialize matrices
-	glm::mat4 model = glm::mat4(1.0f);
-	glm::mat4 matrix = glm::mat4(1.0f);
-	ImGuizmo::RecomposeMatrixFromComponents(glm::value_ptr(transform.position), glm::value_ptr(transform.rotation), glm::value_ptr(transform.scale),
-		glm::value_ptr(matrix));
-	glUniformMatrix4fv(glGetUniformLocation(shader.ID, "model"), 1, GL_FALSE, glm::value_ptr(matrix));
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-	// Рисуем меш (только геометрию, без текстур)
-	glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
+    // Unbind all to prevent accidentally modifying them
+    VAO.Unbind();
+    VBO.Unbind();
+    EBO.Unbind();
+    VBOS = instanceVBO;
 }

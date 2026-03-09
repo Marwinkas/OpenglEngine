@@ -1,0 +1,85 @@
+﻿#version 430 core
+
+// 16x9x1 соответствует плитке на экране, 24 слоя вглубь запустим в C++
+layout(local_size_x = 16, local_size_y = 9, local_size_z = 1) in;
+
+struct PointLightData {
+    vec4 posType;           // xyz = позиция, w = тип
+    vec4 colorInt;          // xyz = цвет, w = интенсивность
+    vec4 dirRadius;         // xyz = направление, w = радиус
+    vec4 shadowParams;      // x = innerCone, y = outerCone, z = castShadows, w = shadowSlot
+    mat4 lightSpaceMatrix;
+};
+
+struct ClusterAABB {
+    vec4 minPoint;
+    vec4 maxPoint;
+};
+
+struct LightGrid {
+    uint offset;
+    uint count;
+};
+
+// Твой блок света из lit.frag (теперь и в Compute!)
+layout(std140, binding = 0) uniform LightBlock {
+    int activeLightsCount;
+    PointLightData lights[100];
+};
+
+layout(std430, binding = 3) readonly buffer ClusterBuffer { ClusterAABB clusters[]; };
+layout(std430, binding = 4) writeonly buffer GridBuffer { LightGrid lightGrid[]; };
+layout(std430, binding = 5) writeonly buffer IndexBuffer { uint globalIndexList[]; };
+
+// Атомный счетчик как SSBO
+layout(std430, binding = 6) buffer AtomicCounter { uint globalIndexCount; };
+
+uniform mat4 viewMatrix;
+
+bool testSphereAABB(uint lightIdx, uint clusterIdx) {
+    // Достаем радиус из dirRadius.w
+    float radius = lights[lightIdx].dirRadius.w;
+    // Достаем позицию и переводим в View Space
+    vec4 lightPosView = viewMatrix * vec4(lights[lightIdx].posType.xyz, 1.0);
+    
+    vec3 minP = clusters[clusterIdx].minPoint.xyz;
+    vec3 maxP = clusters[clusterIdx].maxPoint.xyz;
+
+    float distSq = 0.0;
+    for (int i = 0; i < 3; i++) {
+        float v = lightPosView[i];
+        if (v < minP[i]) distSq += (minP[i] - v) * (minP[i] - v);
+        if (v > maxP[i]) distSq += (v - maxP[i]) * (v - maxP[i]);
+    }
+    return distSq <= (radius * radius);
+}
+
+void main() {
+    uint x = gl_GlobalInvocationID.x;
+    uint y = gl_GlobalInvocationID.y;
+    uint z = gl_GlobalInvocationID.z;
+    uint idx = x + y * 16 + z * 16 * 9;
+
+    uint visibleLightCount = 0;
+    uint visibleLightIndices[100]; 
+
+    for (int i = 0; i < activeLightsCount; i++) {
+        int type = int(lights[i].posType.w);
+        
+        // Directional (тип 0) всегда виден
+        if (type == 0) {
+            if (visibleLightCount < 100) visibleLightIndices[visibleLightCount++] = i;
+        } else if (testSphereAABB(i, idx)) {
+            if (visibleLightCount < 100) visibleLightIndices[visibleLightCount++] = i;
+        }
+    }
+
+    uint offset = atomicAdd(globalIndexCount, visibleLightCount);
+
+    for (uint i = 0; i < visibleLightCount; i++) {
+        globalIndexList[offset + i] = visibleLightIndices[i];
+    }
+
+    lightGrid[idx].offset = offset;
+    lightGrid[idx].count = visibleLightCount;
+}

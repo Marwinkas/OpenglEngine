@@ -1,4 +1,4 @@
-#include"shaderClass.h"
+﻿#include"shaderClass.h"
 
 // Reads a text file and outputs a string with everything in the text file
 std::string get_file_contents(const char* filename)
@@ -18,6 +18,34 @@ std::string get_file_contents(const char* filename)
 }
 
 // Constructor that build the Shader Program from 2 different shaders
+Shader::Shader(const char* computeFile)
+{
+	// Читаем код шейдера из файла
+	std::string computeCode = get_file_contents(computeFile);
+	const char* computeSource = computeCode.c_str();
+
+	// ИСПРАВЛЕНИЕ: Указываем правильный тип - GL_COMPUTE_SHADER
+	GLuint computeShader = glCreateShader(GL_COMPUTE_SHADER);
+
+	// Привязываем исходный код и компилируем
+	glShaderSource(computeShader, 1, &computeSource, NULL);
+	glCompileShader(computeShader);
+
+	// Проверяем ошибки компиляции
+	compileErrors(computeShader, "COMPUTE");
+
+	// Создаем программу и прикрепляем наш шейдер
+	ID = glCreateProgram();
+	glAttachShader(ID, computeShader);
+	glLinkProgram(ID);
+
+	// Проверяем ошибки линковки
+	compileErrors(ID, "PROGRAM");
+
+	// Удаляем объект шейдера, так как он уже слинкован в программу
+	glDeleteShader(computeShader);
+}
+
 Shader::Shader(const char* vertexFile, const char* fragmentFile)
 {
 	// Read vertexFile and fragmentFile and store the strings

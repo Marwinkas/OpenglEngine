@@ -1,4 +1,4 @@
-#include "Material.h"
+﻿#include "Material.h"
 #include <windows.h>
 #include <string>
 #include <filesystem>
@@ -10,66 +10,67 @@ std::string getExecutablePath()
 	std::filesystem::path exePath(buffer);
 	return exePath.parent_path().string();
 }
+MaterialGPUData Material::getGPUData() {
+	MaterialGPUData data;
+	data.albedoHandle = hasalbedo ? albedo.handle : 0;
+	data.normalHandle = hasnormal ? normal.handle : 0;
+	data.heightHandle = hasheight ? height.handle : 0;
+	data.metallicHandle = hasmetallic ? metallic.handle : 0;
+	data.roughnessHandle = hasroughness ? roughness.handle : 0;
+	data.aoHandle = hasao ? ao.handle : 0;
+
+	data.hasAlbedo = hasalbedo;
+	data.hasNormal = hasnormal;
+	data.hasHeight = hasheight;
+	data.hasMetallic = hasmetallic;
+	data.hasRoughness = hasroughness;
+	data.hasAO = hasao;
+
+	return data;
+}
 void Material::setAlbedo(std::string path) {
-	albedo = Texture((getExecutablePath() + "/textures/" + path).c_str(), "diffuse", 0);
+	if (hasalbedo) {
+		glDeleteTextures(1, &albedo.ID);
+	}
+
+	albedo = Texture(path.c_str(), "diffuse", 0,0);
 	hasalbedo = true;
 }
 void Material::setNormal(std::string path) {
-	normal = Texture((getExecutablePath() + "/textures/" + path).c_str(), "normal", 1, true);
+	if (hasnormal) {
+		glDeleteTextures(1, &normal.ID);
+	}
+	normal = Texture(path.c_str(), "normal", 1, 1);
 	hasnormal = true;
 }
 void Material::setHeight(std::string path) {
-	height = Texture((getExecutablePath() + "/textures/" + path).c_str(), "height", 2, true, true);
+	if (hasheight) {
+		glDeleteTextures(1, &height.ID);
+	}
+	height = Texture(path.c_str(), "height", 2, 2);
 	hasheight = true;
 }
 void Material::setMetallic(std::string path) {
-	metallic = Texture((getExecutablePath() + "/textures/" + path).c_str(), "metallic", 3, true);
+	if (hasmetallic) {
+		glDeleteTextures(1, &metallic.ID);
+	}
+	metallic = Texture(path.c_str(), "metallic", 3, 1);
 	hasmetallic = true;
 }
 void Material::setRoughness(std::string path) {
-	roughness = Texture((getExecutablePath() + "/textures/" + path).c_str(), "roughness", 4, true);
+	if (hasroughness) {
+		glDeleteTextures(1, &roughness.ID);
+	}
+	roughness = Texture(path.c_str(), "roughness", 4, 1);
 	hasroughness = true;
 }
 void Material::setAO(std::string path) {
-	ao = Texture((getExecutablePath() + "/textures/" + path).c_str(), "ao", 5, true);
+	if (hasao) {
+		glDeleteTextures(1, &ao.ID);
+	}
+	ao = Texture(path.c_str(), "ao", 5, 1);
 	hasao = true;
 }
 void Material::Activate(Shader& shader) {
-
-	glUniform1i(glGetUniformLocation(shader.ID, "hasAlbedo"), hasalbedo);
-	glUniform1i(glGetUniformLocation(shader.ID, "hasNormal"), hasnormal);
-	glUniform1i(glGetUniformLocation(shader.ID, "hasHeight"), hasheight);
-	glUniform1i(glGetUniformLocation(shader.ID, "hasMetallic"), hasmetallic);
-	glUniform1i(glGetUniformLocation(shader.ID, "hasRoughness"), hasroughness);
-	glUniform1i(glGetUniformLocation(shader.ID, "hasAO"), hasao);
-	if (hasalbedo) {
-		albedo.Bind();
-		glUniform1i(glGetUniformLocation(shader.ID, "diffuse0"), 0);
-	}
-	if (hasnormal) {
-		normal.Bind();
-		glUniform1i(glGetUniformLocation(shader.ID, "normal0"), 1);
-	}
-	if (hasheight) {
-		height.Bind();
-		glUniform1i(glGetUniformLocation(shader.ID, "height0"), 2);
-	}
-	if (hasmetallic) {
-		metallic.Bind();
-		glUniform1i(glGetUniformLocation(shader.ID, "metallic0"), 3);
-	}
-	if (hasroughness) {
-		roughness.Bind();
-		glUniform1i(glGetUniformLocation(shader.ID, "roughness0"), 4);
-	}
-	if (hasao) {
-		ao.Bind();
-		glUniform1i(glGetUniformLocation(shader.ID, "ao0"), 5);
-	}
-
-
-
-
-
-
+	glUniform1i(glGetUniformLocation(shader.ID, "materialID"), this->ID);
 }

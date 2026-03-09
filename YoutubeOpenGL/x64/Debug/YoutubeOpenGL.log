@@ -1,44 +1,985 @@
-﻿  Main.cpp
-C:\Users\Marwinka\Desktop\YoutubeOpenGL 26 - Shadow Maps (Spotlights & Point Lights)\Render.h(91,91): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+﻿  Camera.cpp
+  EBO.cpp
+  Main.cpp
+E:\save\OpenglEngine\LitShader.h(118,106): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
   (compiling source file 'Main.cpp')
   
-C:\Users\Marwinka\Desktop\YoutubeOpenGL 26 - Shadow Maps (Spotlights & Point Lights)\Render.h(91,44): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u041E' cannot be represented in the current code page (1252)
   (compiling source file 'Main.cpp')
   
-C:\Users\Marwinka\Desktop\YoutubeOpenGL 26 - Shadow Maps (Spotlights & Point Lights)\Render.h(107,99): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0428' cannot be represented in the current code page (1252)
   (compiling source file 'Main.cpp')
   
-C:\Users\Marwinka\Desktop\YoutubeOpenGL 26 - Shadow Maps (Spotlights & Point Lights)\Render.h(107,43): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0418' cannot be represented in the current code page (1252)
   (compiling source file 'Main.cpp')
   
-C:\Users\Marwinka\Desktop\YoutubeOpenGL 26 - Shadow Maps (Spotlights & Point Lights)\Render.h(112,39): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0411' cannot be represented in the current code page (1252)
   (compiling source file 'Main.cpp')
   
-C:\Users\Marwinka\Desktop\YoutubeOpenGL 26 - Shadow Maps (Spotlights & Point Lights)\UI.h(56,47): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u041A' cannot be represented in the current code page (1252)
   (compiling source file 'Main.cpp')
   
-C:\Users\Marwinka\Desktop\YoutubeOpenGL 26 - Shadow Maps (Spotlights & Point Lights)\UI.h(56,33): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0410' cannot be represented in the current code page (1252)
   (compiling source file 'Main.cpp')
   
-C:\Users\Marwinka\Desktop\YoutubeOpenGL 26 - Shadow Maps (Spotlights & Point Lights)\UI.h(81,47): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0427' cannot be represented in the current code page (1252)
   (compiling source file 'Main.cpp')
   
-C:\Users\Marwinka\Desktop\YoutubeOpenGL 26 - Shadow Maps (Spotlights & Point Lights)\UI.h(81,33): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0422' cannot be represented in the current code page (1252)
   (compiling source file 'Main.cpp')
   
-glfw3.lib(input.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(input.obj)' or at ''; linking object as if no debug info
-glfw3.lib(init.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(init.obj)' or at ''; linking object as if no debug info
-glfw3.lib(monitor.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(monitor.obj)' or at ''; linking object as if no debug info
-glfw3.lib(window.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(window.obj)' or at ''; linking object as if no debug info
-glfw3.lib(win32_window.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(win32_window.obj)' or at ''; linking object as if no debug info
-glfw3.lib(context.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(context.obj)' or at ''; linking object as if no debug info
-glfw3.lib(win32_joystick.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(win32_joystick.obj)' or at ''; linking object as if no debug info
-glfw3.lib(win32_time.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(win32_time.obj)' or at ''; linking object as if no debug info
-glfw3.lib(win32_init.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(win32_init.obj)' or at ''; linking object as if no debug info
-glfw3.lib(win32_monitor.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(win32_monitor.obj)' or at ''; linking object as if no debug info
-glfw3.lib(win32_thread.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(win32_thread.obj)' or at ''; linking object as if no debug info
-glfw3.lib(vulkan.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(vulkan.obj)' or at ''; linking object as if no debug info
-glfw3.lib(wgl_context.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(wgl_context.obj)' or at ''; linking object as if no debug info
-glfw3.lib(egl_context.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(egl_context.obj)' or at ''; linking object as if no debug info
-glfw3.lib(osmesa_context.obj) : warning LNK4099: PDB '' was not found with 'glfw3.lib(osmesa_context.obj)' or at ''; linking object as if no debug info
-  YoutubeOpenGL.vcxproj -> C:\Users\Marwinka\Desktop\YoutubeOpenGL 26 - Shadow Maps (Spotlights & Point Lights)\x64\Debug\YoutubeOpenGL.exe
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0415' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u041D' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u042F' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0432' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0444' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0430' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0439' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u043B' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0435' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u041F' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u043E' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u0434' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u0440' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u0431' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u043D' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u0441' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u0442' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u0438' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u041E' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0439' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u043D' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0435' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0443' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0434' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0430' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u043B' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u043E' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0441' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u044C' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0442' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0438' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u043C' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0440' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0421' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0446' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0435' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u043D' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0430' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0443' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0441' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u043F' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0448' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u043E' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0445' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0440' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0432' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u041D' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0435' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u043C' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u043E' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0433' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0443' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0442' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u043A' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0440' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u044B' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u044C' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0444' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0430' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0439' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u043B' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0441' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0446' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u043D' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u041E' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0428' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0418' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0411' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u041A' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0410' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0427' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0422' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0415' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u041D' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u042F' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0432' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0444' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0430' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0439' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u043B' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0435' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u041F' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u043E' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u0434' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u0440' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u0431' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u043D' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u0441' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u0442' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u0438' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\UI.h(730,27): warning C4566: character represented by universal-character-name '\U0001F4BE' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\UI.h(791,31): warning C4566: character represented by universal-character-name '\U0001F4BE' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\UI.h(934,27): warning C4566: character represented by universal-character-name '\U0001F4BE' cannot be represented in the current code page (1252)
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\CullingShader.h(111,82): warning C4267: 'argument': conversion from 'size_t' to 'GLuint', possible loss of data
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\CullingShader.h(115,27): warning C4267: 'initializing': conversion from 'size_t' to 'GLuint', possible loss of data
+  (compiling source file 'Main.cpp')
+  
+E:\save\OpenglEngine\Main.cpp(145,22): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+  Material.cpp
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\shared\minwindef.h(130,9): warning C4005: 'APIENTRY': macro redefinition
+  (compiling source file 'Material.cpp')
+      E:\save\OpenglEngine\Libraries\include\glad\glad.h(32,9):
+      see previous definition of 'APIENTRY'
+  
+  Mesh.cpp
+  Model.cpp
+E:\save\OpenglEngine\Model.cpp(17,22): warning C4566: character represented by universal-character-name '\u041E' cannot be represented in the current code page (1252)
+E:\save\OpenglEngine\Model.cpp(17,22): warning C4566: character represented by universal-character-name '\u0428' cannot be represented in the current code page (1252)
+E:\save\OpenglEngine\Model.cpp(17,22): warning C4566: character represented by universal-character-name '\u0418' cannot be represented in the current code page (1252)
+E:\save\OpenglEngine\Model.cpp(17,22): warning C4566: character represented by universal-character-name '\u0411' cannot be represented in the current code page (1252)
+E:\save\OpenglEngine\Model.cpp(17,22): warning C4566: character represented by universal-character-name '\u041A' cannot be represented in the current code page (1252)
+E:\save\OpenglEngine\Model.cpp(17,22): warning C4566: character represented by universal-character-name '\u0410' cannot be represented in the current code page (1252)
+E:\save\OpenglEngine\Model.cpp(17,22): warning C4566: character represented by universal-character-name '\u0417' cannot be represented in the current code page (1252)
+E:\save\OpenglEngine\Model.cpp(17,22): warning C4566: character represented by universal-character-name '\u0413' cannot be represented in the current code page (1252)
+E:\save\OpenglEngine\Model.cpp(17,22): warning C4566: character represented by universal-character-name '\u0420' cannot be represented in the current code page (1252)
+E:\save\OpenglEngine\Model.cpp(17,22): warning C4566: character represented by universal-character-name '\u0423' cannot be represented in the current code page (1252)
+E:\save\OpenglEngine\Model.cpp(17,22): warning C4566: character represented by universal-character-name '\u041C' cannot be represented in the current code page (1252)
+E:\save\OpenglEngine\Model.cpp(17,22): warning C4566: character represented by universal-character-name '\u0414' cannot be represented in the current code page (1252)
+E:\save\OpenglEngine\Model.cpp(17,22): warning C4566: character represented by universal-character-name '\u0415' cannot be represented in the current code page (1252)
+E:\save\OpenglEngine\Model.cpp(17,22): warning C4566: character represented by universal-character-name '\u041B' cannot be represented in the current code page (1252)
+  PostProcessingShader.cpp
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u041E' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0428' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0418' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0411' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u041A' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0410' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0427' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0422' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0415' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u041D' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u042F' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0432' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0444' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0430' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0439' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u043B' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0435' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u041F' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u043E' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u0434' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u0440' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u0431' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u043D' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u0441' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u0442' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u0438' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u041E' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0439' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u043D' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0435' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0443' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0434' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0430' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u043B' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u043E' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0441' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u044C' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0442' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0438' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u043C' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0440' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0421' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0446' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0435' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u043D' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0430' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0443' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0441' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u043F' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0448' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u043E' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0445' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0440' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0432' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u041D' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0435' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u043C' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u043E' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0433' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0443' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0442' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u043A' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0440' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u044B' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u044C' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0444' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0430' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0439' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u043B' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0441' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0446' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u043D' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u041E' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0428' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0418' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0411' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u041A' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0410' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0427' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0422' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0415' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u041D' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u042F' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0432' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0444' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0430' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0439' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u043B' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0435' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u041F' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u043E' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u0434' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u0440' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u0431' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u043D' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u0441' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u0442' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u0438' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\LitShader.h(118,106): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+  (compiling source file 'PostProcessingShader.cpp')
+  
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\shared\minwindef.h(130,9): warning C4005: 'APIENTRY': macro redefinition
+  (compiling source file 'PostProcessingShader.cpp')
+      E:\save\OpenglEngine\Libraries\include\glad\glad.h(32,9):
+      see previous definition of 'APIENTRY'
+  
+E:\save\OpenglEngine\UI.h(730,27): warning C4566: character represented by universal-character-name '\U0001F4BE' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\UI.h(791,31): warning C4566: character represented by universal-character-name '\U0001F4BE' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\UI.h(934,27): warning C4566: character represented by universal-character-name '\U0001F4BE' cannot be represented in the current code page (1252)
+  (compiling source file 'PostProcessingShader.cpp')
+  
+E:\save\OpenglEngine\PostProcessingShader.cpp(286,36): warning C4018: '<': signed/unsigned mismatch
+  Render.cpp
+E:\save\OpenglEngine\LitShader.h(118,106): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u041E' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0428' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0418' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0411' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u041A' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0410' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0427' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0422' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0415' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u041D' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u042F' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0432' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0444' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0430' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0439' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u043B' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(52,30): warning C4566: character represented by universal-character-name '\u0435' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u041F' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u043E' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u0434' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u0440' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u0431' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u043D' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u0441' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u0442' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(53,30): warning C4566: character represented by universal-character-name '\u0438' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u041E' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0439' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u043D' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0435' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0443' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0434' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0430' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u043B' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u043E' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0441' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u044C' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0442' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0438' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u043C' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(88,26): warning C4566: character represented by universal-character-name '\u0440' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0421' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0446' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0435' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u043D' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0430' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0443' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0441' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u043F' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0448' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u043E' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0445' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0440' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(133,22): warning C4566: character represented by universal-character-name '\u0432' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u041D' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0435' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u043C' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u043E' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0433' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0443' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0442' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u043A' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0440' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u044B' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u044C' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0444' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0430' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0439' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u043B' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0441' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u0446' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(140,26): warning C4566: character represented by universal-character-name '\u043D' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u041E' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0428' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0418' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0411' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u041A' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0410' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0427' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0422' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0415' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u041D' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u042F' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0432' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0444' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0430' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0439' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u043B' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(149,26): warning C4566: character represented by universal-character-name '\u0435' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u041F' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u043E' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u0434' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u0440' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u0431' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u043D' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u0441' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u0442' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Serializer.h(150,26): warning C4566: character represented by universal-character-name '\u0438' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\shared\minwindef.h(130,9): warning C4005: 'APIENTRY': macro redefinition
+  (compiling source file 'Render.cpp')
+      E:\save\OpenglEngine\Libraries\include\glad\glad.h(32,9):
+      see previous definition of 'APIENTRY'
+  
+E:\save\OpenglEngine\UI.h(730,27): warning C4566: character represented by universal-character-name '\U0001F4BE' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\UI.h(791,31): warning C4566: character represented by universal-character-name '\U0001F4BE' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\UI.h(934,27): warning C4566: character represented by universal-character-name '\U0001F4BE' cannot be represented in the current code page (1252)
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\CullingShader.h(111,82): warning C4267: 'argument': conversion from 'size_t' to 'GLuint', possible loss of data
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\CullingShader.h(115,27): warning C4267: 'initializing': conversion from 'size_t' to 'GLuint', possible loss of data
+  (compiling source file 'Render.cpp')
+  
+E:\save\OpenglEngine\Render.cpp(93,114): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+E:\save\OpenglEngine\Render.cpp(93,77): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+E:\save\OpenglEngine\Render.cpp(135,118): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+E:\save\OpenglEngine\Render.cpp(135,81): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+E:\save\OpenglEngine\Render.cpp(199,102): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+E:\save\OpenglEngine\Render.cpp(199,65): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+E:\save\OpenglEngine\Render.cpp(210,41): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+  shaderClass.cpp
+  stb.cpp
+  Texture.cpp
+  VAO.cpp
+E:\save\OpenglEngine\VAO.cpp(13,63): warning C4244: 'argument': conversion from 'GLsizeiptr' to 'GLsizei', possible loss of data
+  VBO.cpp
+  Generating Code...
+  glad.c
+LINK : fatal error LNK1104: cannot open file 'glfw3.lib'

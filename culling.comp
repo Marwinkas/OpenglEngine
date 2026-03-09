@@ -1,0 +1,219 @@
+﻿ #version 430 core
+
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+
+struct BoundingSphere {
+
+    vec4 posAndRadius; 
+
+};
+
+
+struct DrawCommand {
+
+    uint count;         
+
+    uint instanceCount; 
+
+    uint firstIndex;    
+
+    uint baseVertex;    
+
+    uint baseInstance;  
+
+};
+
+
+layout(std430, binding = 0) readonly buffer ObjectBuffer { BoundingSphere objects[]; };
+
+layout(std430, binding = 1) buffer CommandBuffer { DrawCommand commands[]; };
+
+
+uniform vec4 frustumPlanes[6]; 
+
+uniform uint objectCount;      
+
+
+// --- НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ OCCLUSION CULLING ---
+
+uniform mat4 viewProjection; // Сюда прилетит твоя готовая cameraMatrix
+
+uniform sampler2D hiZTexture; // Наша пирамида глубины
+
+uniform vec2 screenSize;      // Разрешение экрана
+
+uniform bool isShadowPass;
+
+void main() {
+
+    uint idx = gl_GlobalInvocationID.x;
+
+    if (idx >= objectCount) return;
+
+
+    vec3 pos = objects[idx].posAndRadius.xyz;
+
+    float radius = objects[idx].posAndRadius.w;
+
+    bool isVisible = true;
+
+
+    // ==========================================
+
+    // 1. ПРОВЕРКА ЭКРАНА (Frustum Culling)
+
+    // ==========================================
+
+    for (int i = 0; i < 6; i++) {
+
+        if (dot(frustumPlanes[i].xyz, pos) + frustumPlanes[i].w < -radius) {
+
+            isVisible = false;
+
+            break; 
+
+        }
+
+    }
+
+
+    // ==========================================
+
+    // 2. ПРОВЕРКА ПЕРЕКРЫТИЯ (Occlusion Culling)
+
+    // ==========================================
+
+    if (isVisible && !isShadowPass) {
+
+        // Строим 3D коробку (AABB) вокруг сферы нашего объекта
+
+        vec3 aabbMin = pos - vec3(radius);
+
+        vec3 aabbMax = pos + vec3(radius);
+
+
+        // 8 углов нашей коробки
+
+        vec4 corners[8] = {
+
+            vec4(aabbMin.x, aabbMin.y, aabbMin.z, 1.0),
+
+            vec4(aabbMin.x, aabbMin.y, aabbMax.z, 1.0),
+
+            vec4(aabbMin.x, aabbMax.y, aabbMin.z, 1.0),
+
+            vec4(aabbMin.x, aabbMax.y, aabbMax.z, 1.0),
+
+            vec4(aabbMax.x, aabbMin.y, aabbMin.z, 1.0),
+
+            vec4(aabbMax.x, aabbMin.y, aabbMax.z, 1.0),
+
+            vec4(aabbMax.x, aabbMax.y, aabbMin.z, 1.0),
+
+            vec4(aabbMax.x, aabbMax.y, aabbMax.z, 1.0)
+
+        };
+
+
+        vec2 minXY = vec2(1.0);
+
+        vec2 maxXY = vec2(0.0);
+
+        float minZ = 1.0; // Самая ближняя к камере точка объекта
+
+        
+
+        bool behindNearPlane = false;
+
+
+        // "Сплющиваем" все 8 углов на экран
+
+        for(int i = 0; i < 8; i++) {
+
+            vec4 clip =viewProjection * corners[i];
+
+            
+
+            // Если объект пересекает камеру, не отсекаем его, чтобы не было багов!
+
+            if (clip.w <= 0.0) { behindNearPlane = true; break; }
+
+            
+
+            clip.xyz /= clip.w; // Деление перспективы
+
+            
+
+            // Переводим в координаты текстуры (от 0 до 1)
+
+            clip.xy = clip.xy * 0.5 + 0.5;
+
+            clip.z = clip.z * 0.5 + 0.5;
+
+
+            minXY = min(minXY, clip.xy);
+
+            maxXY = max(maxXY, clip.xy);
+
+            minZ = min(minZ, clip.z);
+
+        }
+
+
+        if (!behindNearPlane) {
+
+            // Ограничиваем рамку размерами экрана
+
+            minXY = clamp(minXY, 0.0, 1.0);
+
+            maxXY = clamp(maxXY, 0.0, 1.0);
+
+
+            // Узнаем размер нашей коробки в пикселях
+
+            vec2 size = (maxXY - minXY) * screenSize;
+
+
+            // Выбираем правильный "этаж" пирамиды (в зависимости от размера объекта)
+
+            float mip = ceil(log2(max(size.x, size.y)));
+
+
+            // Читаем глубину из 4 углов нашей коробки с этого этажа
+
+            float depth1 = textureLod(hiZTexture, minXY, mip).r;
+
+            float depth2 = textureLod(hiZTexture, vec2(maxXY.x, minXY.y), mip).r;
+
+            float depth3 = textureLod(hiZTexture, vec2(minXY.x, maxXY.y), mip).r;
+
+            float depth4 = textureLod(hiZTexture, maxXY, mip).r;
+
+
+            // Какая точка стены самая дальняя в этом квадрате?
+
+            float maxWallDepth = max(max(depth1, depth2), max(depth3, depth4));
+
+
+            // Если самая БЛИЖНЯЯ точка нашего домика (minZ) находится ДАЛЬШЕ, 
+
+            // чем стена... Значит домика не видно! Выключаем!
+
+            if (minZ > maxWallDepth) {
+
+                isVisible = false;
+
+            }
+
+        }
+
+    }
+
+
+    if (isVisible) commands[idx].instanceCount = 1; 
+
+    else commands[idx].instanceCount = 0;
+
+} 
