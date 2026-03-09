@@ -235,5 +235,11 @@
     <None Include="light_culling.comp">
       <Filter>Resource Files\Shaders\optimization</Filter>
     </None>
+    <None Include="ssgi_blur.frag">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="ssao_blur.frag">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
   </ItemGroup>
 </Project>

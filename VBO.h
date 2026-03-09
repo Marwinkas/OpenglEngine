@@ -1,6 +1,5 @@
 ﻿#ifndef VBO_CLASS_H
 #define VBO_CLASS_H
-
 #include<glm/glm.hpp>
 #include<glad/glad.h>
 #include<vector>
@@ -14,13 +13,9 @@ struct Vertex
 	glm::vec2 texUV;
 	glm::vec3 tangent;
 	glm::vec3 bitangent;
-
 	int m_BoneIDs[MAX_BONE_INFLUENCE]; // Номера костей (до 4 штук)
 	float m_Weights[MAX_BONE_INFLUENCE]; // Сила влияния каждой кости
 };
-
-
-
 class VBO
 {
 public:
@@ -36,5 +31,4 @@ public:
 	// Deletes the VBO
 	void Delete();
 };
-
 #endif

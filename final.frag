@@ -1,14 +1,11 @@
 ﻿#version 330 core
 out vec4 FragColor;
 in vec2 texCoords;
-
 uniform sampler2D screenTexture; // Наша картинка из cameraFxTexture
 uniform sampler2D bloomTexture;  // Наше свечение
 uniform sampler2D positionTexture; // Нужно только для объемных лучей (God Rays)
-
 uniform float time;
 uniform float gamma;
-
 // --- Bloom & Flares ---
 uniform bool enableBloom;
 uniform float bloomIntensity;
@@ -16,19 +13,16 @@ uniform bool enableLensFlares;
 uniform float flareIntensity;
 uniform float ghostDispersal;
 uniform int ghosts;
-
 // --- God Rays ---
 uniform bool enableGodRays;
 uniform float godRaysIntensity;
 uniform vec2 lightScreenPos;
-
 // --- Цвет и Экспозиция ---
 uniform float currentExposure;
 uniform float exposureCompensation;
 uniform float temperature;
 uniform float contrast;
 uniform float saturation;
-
 // --- Линза и Пленка ---
 uniform bool enableVignette;
 uniform float vignetteIntensity;
@@ -38,16 +32,13 @@ uniform bool enableFilmGrain;
 uniform float grainIntensity;
 uniform bool enableSharpen;
 uniform float sharpenIntensity;
-
 float random(vec2 uv) {
     return fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453123);
 }
-
 vec3 ACESFilm(vec3 x) {
     float a = 2.51; float b = 0.03; float c = 2.43; float d = 0.59; float e = 0.14;
     return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
 }
-
 vec3 KelvinToRGB(float temp) {
     temp /= 100.0;
     float r, g, b;
@@ -62,10 +53,8 @@ vec3 KelvinToRGB(float temp) {
     }
     return clamp(vec3(r, g, b) / 255.0, 0.0, 1.0);
 }
-
 void main() {
     vec3 finalColor = vec3(0.0);
-    
     // 1. Хроматическая аберрация (радужные края)
     if (enableChromaticAberration) {
         vec2 dir = texCoords - vec2(0.5);
@@ -78,12 +67,10 @@ void main() {
     } else {
         finalColor = texture(screenTexture, texCoords).rgb;
     }
-
     // 2. Свечение (Bloom) и блики (Lens Flares)
     if (enableBloom) {
         finalColor += texture(bloomTexture, texCoords).rgb * bloomIntensity;
     }
-
     if (enableLensFlares) {
         vec2 texcoord = -texCoords + vec2(1.0); 
         vec2 ghostVec = (vec2(0.5) - texcoord) * ghostDispersal;
@@ -95,7 +82,6 @@ void main() {
         }
         finalColor += flareResult * flareIntensity;
     }
-
     // 3. Объемные лучи (God Rays)
     if (enableGodRays && godRaysIntensity > 0.0) {
         vec2 deltaUV = (texCoords - lightScreenPos);
@@ -112,26 +98,21 @@ void main() {
         }
         finalColor += godRaysColor;
     }
-
     // 4. Температура цвета
     vec3 tempTint = KelvinToRGB(temperature);
     finalColor *= tempTint;
-
     // 5. Яркость и контраст
     finalColor *= (currentExposure * exposureCompensation);
     finalColor = max(vec3(0.0), (finalColor - 0.5) * contrast + 0.5);
     float luma = dot(finalColor, vec3(0.2126, 0.7152, 0.0722));
     finalColor = mix(vec3(luma), finalColor, saturation);
-
     // 6. Виньетка (мягкое затемнение по краям)
     if (enableVignette) {
         float d = distance(texCoords, vec2(0.5));
         finalColor *= smoothstep(0.8, vignetteIntensity * 0.79, d * (1.0 + vignetteIntensity));
     }
-    
     // 7. Кинематографичный цвет (ACES Tonemapping)
     finalColor = ACESFilm(finalColor);
-
     // 8. Резкость
     if (enableSharpen) {
         vec2 t = 1.0 / vec2(textureSize(screenTexture, 0));
@@ -139,17 +120,14 @@ void main() {
         vec3 down  = ACESFilm(texture(screenTexture, texCoords - vec2(0.0, t.y)).rgb);
         vec3 left  = ACESFilm(texture(screenTexture, texCoords - vec2(t.x, 0.0)).rgb);
         vec3 right = ACESFilm(texture(screenTexture, texCoords + vec2(t.x, 0.0)).rgb);
-        
         finalColor = finalColor * (1.0 + 4.0 * sharpenIntensity) - (up + down + left + right) * sharpenIntensity;
         finalColor = max(finalColor, vec3(0.0));
     }
-
     // 9. Зерно пленки
     if (enableFilmGrain) {
         float noise = random(texCoords + time) * 2.0 - 1.0; 
         finalColor += finalColor * noise * grainIntensity;
     }
-
     // 10. Отправляем картинку на монитор!
     float safeGamma = max(gamma, 0.001);
     FragColor = vec4(pow(finalColor, vec3(1.0 / safeGamma)), 1.0);

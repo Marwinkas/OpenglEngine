@@ -2,7 +2,6 @@
 #include <windows.h>
 #include <string>
 #include <filesystem>
-
 std::string getExecutablePath()
 {
 	char buffer[MAX_PATH];
@@ -18,21 +17,18 @@ MaterialGPUData Material::getGPUData() {
 	data.metallicHandle = hasmetallic ? metallic.handle : 0;
 	data.roughnessHandle = hasroughness ? roughness.handle : 0;
 	data.aoHandle = hasao ? ao.handle : 0;
-
 	data.hasAlbedo = hasalbedo;
 	data.hasNormal = hasnormal;
 	data.hasHeight = hasheight;
 	data.hasMetallic = hasmetallic;
 	data.hasRoughness = hasroughness;
 	data.hasAO = hasao;
-
 	return data;
 }
 void Material::setAlbedo(std::string path) {
 	if (hasalbedo) {
 		glDeleteTextures(1, &albedo.ID);
 	}
-
 	albedo = Texture(path.c_str(), "diffuse", 0,0);
 	hasalbedo = true;
 }

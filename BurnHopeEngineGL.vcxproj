@@ -211,6 +211,7 @@
     <None Include="sky.frag" />
     <None Include="sky.vert" />
     <None Include="ssao.frag" />
+    <None Include="ssao_blur.frag" />
     <None Include="ssgi.frag" />
     <None Include="framebuffer.vert" />
     <None Include="shadowCubeMap.frag" />
@@ -218,6 +219,7 @@
     <None Include="shadowCubeMap.vert" />
     <None Include="shadowMap.frag" />
     <None Include="shadowMap.vert" />
+    <None Include="ssgi_blur.frag" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

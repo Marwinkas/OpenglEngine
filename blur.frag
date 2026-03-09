@@ -1,20 +1,35 @@
 ﻿#version 330 core
+
+#define GOLDEN_ANGLE 2.39996323
 out vec4 FragColor;
 in vec2 texCoords;
 
-uniform sampler2D screenTexture; 
-uniform sampler2D ssgiTexture;   
+// Текстуры G-буфера и эффектов
+uniform sampler2D screenTexture;  // Основной свет
+uniform sampler2D ssgiTexture;    // Непрямое освещение
 uniform sampler2D normalTexture;
 uniform sampler2D positionTexture;
-uniform sampler2D ssaoTexture;
+uniform sampler2D ssaoTexture;    // Тени SSAO
 uniform sampler2D bloomTexture;
 
-uniform float gamma;
-uniform int blurRange;
+// Параметры тумана
+uniform bool enableFog;
+uniform float fogDensity;
+uniform float fogHeightFalloff;
+uniform float fogBaseHeight;
+uniform vec3 fogColor;
+uniform vec3 inscatterColor;
+uniform float inscatterPower;
+uniform float inscatterIntensity;
+uniform vec3 sunDirFog;
 
-// Фильтры
+// Глобальные настройки
+uniform float gamma;
 uniform float contrast;
 uniform float saturation;
+uniform float temperature;
+
+// Виньетка и Аберрация
 uniform bool enableVignette;
 uniform float vignetteIntensity;
 uniform bool enableChromaticAberration;
@@ -28,10 +43,12 @@ uniform float flareIntensity;
 uniform float ghostDispersal;
 uniform int ghosts;
 
-// Exposure & Temp
+// Экспозиция
 uniform float currentExposure;
 uniform float exposureCompensation;
-uniform float temperature;
+uniform int autoExposure;
+uniform float minBrightness;
+uniform float maxBrightness;
 
 // Depth of Field
 uniform bool enableDoF;
@@ -50,21 +67,14 @@ uniform bool enableGodRays;
 uniform float godRaysIntensity;
 uniform vec2 lightScreenPos;
 
+// Доп. фильтры
 uniform bool enableFilmGrain;
 uniform float grainIntensity;
-
 uniform bool enableSharpen;
 uniform float sharpenIntensity;
-// --- FOG ---
-uniform bool enableFog;
-uniform float fogDensity;
-uniform float fogHeightFalloff;
-uniform float fogBaseHeight;
-uniform vec3 fogColor;
-uniform vec3 inscatterColor;
-uniform float inscatterPower;
-uniform float inscatterIntensity;
-uniform vec3 sunDirFog;
+
+// --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
+
 float random(vec2 uv) {
     return fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453123);
 }
@@ -79,6 +89,7 @@ vec3 ACESFilm(vec3 x) {
 }
 
 vec3 KelvinToRGB(float temp) {
+    if (temp < 1000.0) temp = 6500.0; 
     temp /= 100.0;
     float r, g, b;
     if (temp <= 66.0) {
@@ -92,221 +103,218 @@ vec3 KelvinToRGB(float temp) {
     }
     return clamp(vec3(r, g, b) / 255.0, 0.0, 1.0);
 }
+vec3 sampleChromatic(sampler2D tex, vec2 uv) {
+    if (!enableChromaticAberration) return texture(tex, uv).rgb;
+
+    // Переводим UV в диапазон [-1, 1] относительно центра
+    vec2 coords = uv * 2.0 - 1.0;
+    
+    // Вычисляем "выпуклость" линзы (Barrel Distortion)
+    // k - коэффициент искривления. caIntensity влияет и на сдвиг, и на изгиб.
+    float k = length(coords) * caIntensity * 2.0; 
+    
+    // Искажаем UV для каждого канала отдельно (Красный тянется сильнее всех)
+    vec2 uvR = uv - coords * k * 0.02;
+    vec2 uvG = uv; // Зеленый оставляем в центре
+    vec2 uvB = uv + coords * k * 0.02;
+    
+    return vec3(
+        texture(tex, uvR).r,
+        texture(tex, uvG).g,
+        texture(tex, uvB).b
+    );
+}
+// Функция сборки полного освещения для одного пикселя
+vec3 getFullLitColor(vec2 uv) {
+    vec3 direct = sampleChromatic(screenTexture, uv);
+    vec3 indirect = texture(ssgiTexture, uv).rgb;
+    float ssao = texture(ssaoTexture, uv).r;
+    return (direct + indirect * 2.0) * ssao;
+}
 
 void main() {
-    vec2 texelSize = 1.0 / vec2(textureSize(ssgiTexture, 0));
     vec3 centerPos = texture(positionTexture, texCoords).rgb;
-    vec3 centerNormal = texture(normalTexture, texCoords).rgb;
-    
-    vec3 baseColor = vec3(0.0);
     bool isSky = length(centerPos) < 0.01;
+    vec3 finalSceneColor = vec3(0.0);
 
     // ==========================================
-    // ЭТАП 1: ЛОКАЛЬНЫЕ ЭФФЕКТЫ (Геометрия vs Небо)
+    // ЭТАП 1: ГЕОМЕТРИЯ (DoF, Motion Blur, Fog)
     // ==========================================
     if (isSky) {
-        // ЕСЛИ ЭТО НЕБО: Берем чистый цвет и не считаем тени/DoF
-        baseColor = texture(screenTexture, texCoords).rgb;
+        finalSceneColor = texture(screenTexture, texCoords).rgb;
     } 
     else {
-        // ЕСЛИ ЭТО ГЕОМЕТРИЯ: Считаем полный фарш
-        // 1. Хроматическая аберрация
-        vec3 directLight = vec3(0.0);
-        if (enableChromaticAberration) {
-            vec2 dir = texCoords - vec2(0.5);
-            float dist = length(dir); 
-            vec2 rCoords = texCoords + dir * caIntensity * dist;
-            vec2 bCoords = texCoords - dir * caIntensity * dist;
-            directLight.r = texture(screenTexture, rCoords).r;
-            directLight.g = texture(screenTexture, texCoords).g;
-            directLight.b = texture(screenTexture, bCoords).b;
-        } else {
-            directLight = texture(screenTexture, texCoords).rgb;
-        }
+        // 1.1 Собираем базовый цвет текущего пикселя (Свет + SSAO)
+        vec3 currentPixelColor = getFullLitColor(texCoords);
+        finalSceneColor = currentPixelColor;
 
-        // 2. SSGI (Отражения)
-        vec3 blurSSGI = vec3(0.0);
-        float totalWeight = 0.0;
-        for(int x = -blurRange; x <= blurRange; ++x) {
-            for(int y = -blurRange; y <= blurRange; ++y) {
-                vec2 offset = vec2(float(x), float(y)) * texelSize;
-                vec3 sPos = texture(positionTexture, texCoords + offset).rgb;
-                vec3 sNorm = texture(normalTexture, texCoords + offset).rgb;
-                vec3 sSSGI = texture(ssgiTexture, texCoords + offset).rgb;
-
-                float w = pow(max(0.0, dot(centerNormal, sNorm)), 2.0); 
-                float distWeight = exp(-length(centerPos - sPos) * 1.0); 
-                float finalWeight = w * distWeight + 0.0001; 
-
-                blurSSGI += sSSGI * finalWeight;
-                totalWeight += finalWeight;
+        // 1.2 DEPTH OF FIELD (Размытие фона)
+        if (enableDoF) {
+            float distToCam = length(centerPos - camPos);
+            float dofFactor = clamp((abs(distToCam - focusDistance) - focusRange) / max(bokehSize, 0.001), 0.0, 1.0);
+            
+            if (dofFactor > 0.0) {
+                vec3 bokehColor = vec3(0.0);
+                float rad = dofFactor * 0.015; 
+                int samples = 16;
+                for(int i = 0; i < samples; i++) {
+                    float theta = float(i) * GOLDEN_ANGLE;
+                    float r = sqrt(float(i) / float(samples)) * rad;
+                    vec2 offset = vec2(sin(theta), cos(theta)) * r;
+                    bokehColor += getFullLitColor(texCoords + offset);
+                }
+                finalSceneColor = mix(finalSceneColor, bokehColor / float(samples), dofFactor);
             }
         }
-        vec3 indirect = blurSSGI / totalWeight;
 
-        // 3. SSAO (Микротени)
-        float ambientOcclusion = texture(ssaoTexture, texCoords).r;
-        baseColor = (directLight + indirect * 2.0) * ambientOcclusion;
-        
-        if (enableFog) {
-            // Дистанция от камеры до пикселя
-            float distToCamFog = length(centerPos - camPos);
-            
-            // Насколько высоко находится этот пиксель над базой тумана
-            float height = centerPos.y - fogBaseHeight;
-            
-            // Считаем экспоненциальное падение плотности с высотой
-            float heightDensity = exp(-height * fogHeightFalloff);
-            
-            // Итоговая сила тумана (от 0.0 до 1.0)
-            float fogFactor = 1.0 - exp(-distToCamFog * fogDensity * heightDensity);
-            fogFactor = clamp(fogFactor, 0.0, 1.0);
-            
-            // Объемное свечение (Inscattering) - если смотрим в сторону солнца
-            vec3 viewDirFog = normalize(centerPos - camPos);
-            vec3 L = normalize(-sunDirFog); 
-            float inscatterFactor = pow(max(dot(viewDirFog, L), 0.0), inscatterPower);
-            
-            // Смешиваем обычный цвет тумана с цветом солнца
-            vec3 currentFogColor = fogColor + (inscatterColor * inscatterFactor * inscatterIntensity);
-            
-            // Накладываем туман на нашу картинку!
-            baseColor = mix(baseColor, currentFogColor, fogFactor);
-        }
-
-        // 4. Depth of Field (Размытие фона)
-        float distToCam = length(centerPos - camPos); 
-        float dofFactor = 0.0;
-        if (enableDoF) {
-            dofFactor = abs(distToCam - focusDistance) - focusRange;
-            dofFactor = clamp(dofFactor / max(bokehSize, 0.001), 0.0, 1.0); 
-        }
-        if (enableDoF && dofFactor > 0.0) {
-            baseColor = mix(baseColor, indirect * 1.5, dofFactor); 
-        }
-
-        // 5. Motion Blur (Размытие в движении только для объектов)
-// 5. Motion Blur (Улучшенный, с проверкой глубины и теней)
+        // 1.3 MOTION BLUR (Размытие в движении)
         if (enableMotionBlur) {
             vec4 prevClip = prevViewProj * vec4(centerPos, 1.0);
             vec2 prevNDC = prevClip.xy / prevClip.w;
             vec2 prevUV = prevNDC * 0.5 + 0.5;
             
-            // Вектор скорости пикселя
-            vec2 velocity = (texCoords - prevUV) * mbStrength;
+            vec2 velocity = (texCoords - prevUV) * mbStrength * 2.0; 
+            velocity = clamp(velocity, vec2(-0.03), vec2(0.03)); 
             
-            int mbSamples = 6;
-            vec3 mbColor = baseColor; // Начинаем с текущего (уже затененного) пикселя
-            float totalWeightMB = 1.0;
-            
-            for(int i = 1; i < mbSamples; ++i) {
-                // Вычисляем координаты соседа по линии движения
-                vec2 offsetUV = texCoords + velocity * (float(i) / float(mbSamples - 1) - 0.5);
-                
-                // Читаем позицию соседа, чтобы узнать, где он в 3D
-                vec3 sPos = texture(positionTexture, offsetUV).rgb;
-                
-                // ЗАЩИТА ОТ МЫЛА:
-                // Если сосед это небо (<0.01) или разница в глубине между нами больше 1.5 метров
-                // значит это край объекта. Мы не смешиваем их, чтобы сохранить резкость!
-                if (length(sPos) < 0.01 || abs(length(sPos) - length(centerPos)) > 1.5) {
-                    continue; // Пропускаем этого соседа
+            if (length(velocity) > 0.0001) {
+                int mbSamples = 8;
+                vec3 mbAccum = finalSceneColor;
+                for(int i = 1; i < mbSamples; ++i) {
+                    vec2 offset = velocity * (float(i) / float(mbSamples - 1) - 0.5);
+                    mbAccum += getFullLitColor(texCoords + offset);
                 }
-
-                // Читаем цвет соседа
-                vec3 sColor = texture(screenTexture, offsetUV).rgb;
-                // Читаем тень (SSAO) соседа!
-                float sSSAO = texture(ssaoTexture, offsetUV).r;
-                
-                // Добавляем цвет соседа ВМЕСТЕ с его тенью
-                mbColor += sColor * sSSAO;
-                totalWeightMB += 1.0; // Считаем, сколько реально пикселей подошло
+                finalSceneColor = mbAccum / float(mbSamples);
             }
+        }
+
+        // 1.4 ТУМАН (Поверх размытия и SSAO)
+        if (enableFog) {
+            float distToCamFog = length(centerPos - camPos);
+            float heightDensity = exp(-(centerPos.y - fogBaseHeight) * fogHeightFalloff);
+            float fogFactor = clamp(1.0 - exp(-distToCamFog * fogDensity * heightDensity), 0.0, 1.0);
             
-            // Усредняем только по тем пикселям, которые прошли проверку
-            baseColor = mbColor / totalWeightMB;
+            vec3 viewDirFog = normalize(centerPos - camPos);
+            float inscatter = pow(max(dot(viewDirFog, normalize(-sunDirFog)), 0.0), inscatterPower);
+            vec3 currentFogColor = fogColor + (inscatterColor * inscatter * inscatterIntensity);
+            
+            finalSceneColor = mix(finalSceneColor, currentFogColor, fogFactor);
         }
     }
 
-    vec3 finalColor = baseColor;
+    vec3 finalColor = finalSceneColor;
 
     // ==========================================
-    // ЭТАП 2: ГЛОБАЛЬНЫЕ ЭФФЕКТЫ (Накладываются поверх ВСЕГО)
+    // ЭТАП 2: ГЛОБАЛЬНЫЕ ЭФФЕКТЫ (Bloom, God Rays)
     // ==========================================
 
-    // 1. BLOOM И FLARES (Вернулись к жизни!)
     if (enableBloom) {
-        vec3 bloomColor = texture(bloomTexture, texCoords).rgb;
-        finalColor += bloomColor * bloomIntensity;
+        finalColor += texture(bloomTexture, texCoords).rgb * bloomIntensity;
     }
-
+    // --- 2.1 LENS FLARES (Fix & Polish) ---
     if (enableLensFlares) {
-        vec2 texcoord = -texCoords + vec2(1.0); 
-        vec2 ghostVec = (vec2(0.5) - texcoord) * ghostDispersal;
+        // 1. Координаты, отраженные относительно центра экрана
+        vec2 uv = texCoords;
+        vec2 mirroredUV = vec2(1.0) - uv;
+        
+        // Вектор от отраженной точки к центру
+        vec2 ghostDir = (vec2(0.5) - mirroredUV) * ghostDispersal;
+        
         vec3 flareResult = vec3(0.0);
+        
+        // 2. Рисуем "Призраков" (Ghosts)
         for (int i = 0; i < ghosts; ++i) {
-            vec2 offset = fract(texcoord + ghostVec * float(i));
-            float weight = pow(1.0 - length(vec2(0.5) - offset) / length(vec2(0.5)), 10.0); 
-            flareResult += texture(bloomTexture, offset).rgb * weight;
+            // УБРАЛИ fract()! Теперь блики просто улетают за экран.
+            vec2 offset = mirroredUV + ghostDir * float(i);
+            
+            // Плавное затухание у краев экрана (Vignette-like weight)
+            // Если блик выходит за [0, 1], weight станет отрицательным или нулевым
+            float weight = pow(1.0 - distance(offset, vec2(0.5)) / 0.707, 10.0);
+            
+            if (weight > 0.0) {
+                // Добавляем микро-расслоение цвета (аберрация блика)
+                float distortion = 0.005;
+                float r = texture(bloomTexture, offset + normalize(ghostDir) * distortion).r;
+                float g = texture(bloomTexture, offset).g;
+                float b = texture(bloomTexture, offset - normalize(ghostDir) * distortion).b;
+                
+                flareResult += vec3(r, g, b) * weight;
+            }
         }
+        
+        // 3. Добавляем "Halo" (Кольцо)
+        // Кольцо обычно находится на фиксированном расстоянии от инвертированной точки
+        vec2 haloVec = normalize(ghostDir) * ghostDispersal * 1.5; // Чуть дальше призраков
+        vec2 haloUV = mirroredUV + haloVec;
+        float haloWeight = pow(1.0 - distance(haloUV, vec2(0.5)) / 0.707, 15.0);
+        
+        if (haloWeight > 0.0) {
+            flareResult += texture(bloomTexture, haloUV).rgb * haloWeight * 0.5;
+        }
+
+        // Итоговое прибавление к сцене
         finalColor += flareResult * flareIntensity;
     }
-
-    // 2. GOD RAYS (Объемные лучи)
     if (enableGodRays && godRaysIntensity > 0.0) {
-        vec2 deltaUV = (texCoords - lightScreenPos);
-        deltaUV *= 1.0 / 30.0 * godRaysIntensity; 
-        
+        vec2 deltaUV = (texCoords - lightScreenPos) * (1.0 / 30.0) * godRaysIntensity;
         vec2 rayUV = texCoords;
-        float illuminationDecay = 1.0;
-        vec3 godRaysColor = vec3(0.0);
-        
+        float decay = 1.0;
         for(int i = 0; i < 30; i++) {
             rayUV -= deltaUV;
-            vec3 samp = texture(bloomTexture, rayUV).rgb;
-            samp *= illuminationDecay * 0.1; 
-            godRaysColor += samp;
-            illuminationDecay *= 0.95; 
+            if(rayUV.x < 0.0 || rayUV.x > 1.0 || rayUV.y < 0.0 || rayUV.y > 1.0) break;
+            vec3 samp = texture(screenTexture, rayUV).rgb;
+            if (dot(samp, vec3(0.2126, 0.7152, 0.0722)) > 0.8) {
+                finalColor += samp * decay * 0.1;
+            }
+            decay *= 0.95;
         }
-        finalColor += godRaysColor;
     }
 
-    // 3. ТЕМПЕРАТУРА
-    vec3 tempTint = KelvinToRGB(temperature);
-    finalColor *= tempTint;
+    // ==========================================
+    // ЭТАП 3: ПОСТ-ОБРАБОТКА (Цвет, Тонмаппинг)
+    // ==========================================
 
-    // 4. ЭКСПОЗИЦИЯ И КОЛОРИНГ
-    finalColor *= (currentExposure * exposureCompensation);
+    // 3.1 Температура и Экспозиция
+    finalColor *= KelvinToRGB(temperature);
+    
+    float exposure = currentExposure;
+    if (autoExposure == 1) {
+        vec3 avgColor = textureLod(screenTexture, vec2(0.5), 10.0).rgb;
+        float avgLuma = max(dot(avgColor, vec3(0.2126, 0.7152, 0.0722)), 0.0001);
+        exposure = clamp(0.5 / avgLuma, minBrightness, maxBrightness);
+    }
+    finalColor *= (exposure * exposureCompensation);
+
+    // 3.2 Контраст и Насыщенность
     finalColor = max(vec3(0.0), (finalColor - 0.5) * contrast + 0.5);
-
     float luma = dot(finalColor, vec3(0.2126, 0.7152, 0.0722));
     finalColor = mix(vec3(luma), finalColor, saturation);
 
+    // 3.3 Виньетка (исправленная)
     if (enableVignette) {
         float d = distance(texCoords, vec2(0.5));
-        finalColor *= smoothstep(0.8, vignetteIntensity * 0.79, d * (1.0 + vignetteIntensity));
+        finalColor *= (1.0 - smoothstep(0.4, 0.8, d) * vignetteIntensity);
     }
-    
-    // 5. ТОНМАППИНГ (ACES)
+
+    // 3.4 ACES Тонмаппинг
     finalColor = ACESFilm(finalColor);
 
-    // 6. SHARPEN И ЗЕРНО
+    // 3.5 Sharpen и Зерно
     if (enableSharpen) {
-        vec2 t = 1.0 / vec2(textureSize(screenTexture, 0))
-        vec3 up    = ACESFilm(texture(screenTexture, texCoords + vec2(0.0, t.y)).rgb);
-        vec3 down  = ACESFilm(texture(screenTexture, texCoords - vec2(0.0, t.y)).rgb);
-        vec3 left  = ACESFilm(texture(screenTexture, texCoords - vec2(t.x, 0.0)).rgb);
-        vec3 right = ACESFilm(texture(screenTexture, texCoords + vec2(t.x, 0.0)).rgb);
-        
-        finalColor = finalColor * (1.0 + 4.0 * sharpenIntensity) - (up + down + left + right) * sharpenIntensity;
-        finalColor = max(finalColor, vec3(0.0));
+        vec2 t = 1.0 / textureSize(screenTexture, 0);
+        vec3 neighbor = (texture(screenTexture, texCoords + vec2(0, t.y)).rgb + 
+                         texture(screenTexture, texCoords - vec2(0, t.y)).rgb + 
+                         texture(screenTexture, texCoords + vec2(t.x, 0)).rgb + 
+                         texture(screenTexture, texCoords - vec2(t.x, 0)).rgb) * 0.25;
+        finalColor += (finalColor - ACESFilm(neighbor * exposure)) * sharpenIntensity;
     }
 
     if (enableFilmGrain) {
-        float noise = random(texCoords + time) * 2.0 - 1.0; 
-        finalColor += finalColor * noise * grainIntensity;
-    }
 
-    float safeGamma = max(gamma, 0.001);
-    FragColor = vec4(pow(finalColor, vec3(1.0 / safeGamma)), 1.0);
+        float noise = random(texCoords + time) * 2.0 - 1.0; 
+
+        finalColor += finalColor * noise * grainIntensity;
+
+    } 
+
+    FragColor = vec4(pow(max(finalColor, 0.0), vec3(1.0 / gamma)), 1.0);
 }

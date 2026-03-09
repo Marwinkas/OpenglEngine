@@ -1,10 +1,8 @@
 ﻿#version 330 core
 out vec4 FragColor;
 in vec2 texCoords;
-
 uniform sampler2D screenTexture;
 uniform float threshold;
-
 void main() {
     vec3 color = texture(screenTexture, texCoords).rgb;
     // Вычисляем реальную яркость пикселя

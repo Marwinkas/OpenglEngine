@@ -1,49 +1,38 @@
 ﻿#version 430 core
-
 // Будем обрабатывать картинку блоками 16x16 пикселей
 layout(local_size_x = 16, local_size_y = 16) in;
-
 uniform sampler2D inDepth; // Картинка глубины, ИЗ которой мы читаем
 layout(r32f, binding = 0) uniform writeonly image2D outDepth; // Картинка, В которую мы пишем
-
 uniform int inMipLevel; // Какой уровень читаем
 uniform bool copyOnly;  // Режим "просто скопируй" (для самого первого этажа)
-
 void main() {
     ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
     ivec2 outSize = imageSize(outDepth);
-    
     // Защита от выхода за края экрана
     if(pos.x >= outSize.x || pos.y >= outSize.y) return;
-
     // --- РЕЖИМ 1: Строим самый первый этаж (просто копируем из FBO) ---
     if (copyOnly) {
         float d = texelFetch(inDepth, pos, 0).r;
         imageStore(outDepth, pos, vec4(d));
         return;
     }
-
     // --- РЕЖИМ 2: Строим следующие этажи (сжатие) ---
     ivec2 inSize = textureSize(inDepth, inMipLevel);
     ivec2 prevPos = pos * 2;
-
     // Находим координаты 4 пикселей с предыдущего этажа 
     // (min используем как защиту, чтобы не вылезти за край)
     ivec2 p00 = prevPos;
     ivec2 p10 = min(prevPos + ivec2(1, 0), inSize - 1);
     ivec2 p01 = min(prevPos + ivec2(0, 1), inSize - 1);
     ivec2 p11 = min(prevPos + ivec2(1, 1), inSize - 1);
-
     // Достаем глубину этих 4 пикселей
     float d1 = texelFetch(inDepth, p00, inMipLevel).r;
     float d2 = texelFetch(inDepth, p10, inMipLevel).r;
     float d3 = texelFetch(inDepth, p01, inMipLevel).r;
     float d4 = texelFetch(inDepth, p11, inMipLevel).r;
-
     // Находим САМУЮ ДАЛЬНЮЮ точку (max) из четырех. 
     // Это гарантирует, что стена "закроет" объекты правильно!
     float maxDepth = max(max(d1, d2), max(d3, d4));
-    
     // Записываем результат
     imageStore(outDepth, pos, vec4(maxDepth));
 }

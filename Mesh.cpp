@@ -7,6 +7,7 @@ Mesh::Mesh(std::vector <Vertex>& vertices, std::vector <GLuint>& indices)
     ID = meshid++;
 
     VAO.Bind();
+
     // Generates Vertex Buffer Object and links it to vertices
     VBO VBO(vertices);
     // Generates Element Buffer Object and links it to indices
@@ -20,28 +21,23 @@ Mesh::Mesh(std::vector <Vertex>& vertices, std::vector <GLuint>& indices)
     VAO.LinkAttrib(VBO, 4, 3, GL_FLOAT, sizeof(Vertex), (void*)(11 * sizeof(float)));
     VAO.LinkAttrib(VBO, 5, 3, GL_FLOAT, sizeof(Vertex), (void*)(14 * sizeof(float))); // bitangentSign
 
-    // --- НАСТРОЙКА ИНСТАНСИНГА (Локации 6, 7, 8, 9) ---
+    // --- НАСТРОЙКА ИНСТАНСИНГА (Обычный VBO) ---
     GLuint instanceVBO;
     glGenBuffers(1, &instanceVBO);
     glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
 
-    // Выделяем память навсегда (с запасом на 10 000 объектов одного типа)
-    GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
-    glBufferStorage(GL_ARRAY_BUFFER, 10000 * sizeof(glm::mat4), nullptr, flags);
-
-    // Получаем портал в память
-    mappedInstanceVBO = glMapBufferRange(GL_ARRAY_BUFFER, 0, 10000 * sizeof(glm::mat4), flags);
+    // Просто выделяем память с запасом на 10000 объектов, будем заполнять её каждый кадр
+    glBufferData(GL_ARRAY_BUFFER, 10000 * sizeof(glm::mat4), nullptr, GL_DYNAMIC_DRAW);
 
     std::size_t vec4Size = sizeof(glm::vec4);
     for (int i = 0; i < 4; i++) {
         glEnableVertexAttribArray(6 + i);
-        glVertexAttribPointer(6 + i, 4, GL_FLOAT, GL_FALSE,
-            sizeof(glm::mat4), (void*)(i * vec4Size));
+        glVertexAttribPointer(6 + i, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(i * vec4Size));
         glVertexAttribDivisor(6 + i, 1);
     }
 
     // --- НАСТРОЙКА КОСТЕЙ ДЛЯ АНИМАЦИИ (Локации 10, 11) ---
-    // ВАЖНО: Снова привязываем основной VBO вершин, так как мы только что работали с instanceVBO!
+    // ВАЖНО: Снова привязываем основной VBO вершин
     VBO.Bind();
 
     // ID Костей (Location 10). Используем IPointer для целочисленных значений (INT)
@@ -58,5 +54,6 @@ Mesh::Mesh(std::vector <Vertex>& vertices, std::vector <GLuint>& indices)
     VAO.Unbind();
     VBO.Unbind();
     EBO.Unbind();
+
     VBOS = instanceVBO;
 }

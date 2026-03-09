@@ -66,13 +66,51 @@ Mesh Model::processMesh(aiMesh* mesh, const aiScene* scene)
         }
         vertices.push_back(vertex);
     }
-    for (unsigned int i = 0; i < mesh->mNumFaces; i++)
-    {
+    for (unsigned int i = 0; i < mesh->mNumFaces; i++) {
         aiFace face = mesh->mFaces[i];
         for (unsigned int j = 0; j < face.mNumIndices; j++)
             indices.push_back(face.mIndices[j]);
-    }  
+    }
+    // --- АВТОГЕНЕРАЦИЯ LOD ---
+    std::vector<LODLevel> levels;
+    // Уровень 0: Оригинал
+    levels.push_back({ (unsigned int)indices.size(), 0 });
+    // Генерируем еще 2 уровня (LOD 1 - 50% и LOD 2 - 10%)
+    float thresholds[2] = { 0.5f, 0.1f };
+    for (int i = 0; i < 2; i++) {
+        unsigned int sourceCount = levels.back().count;
+        unsigned int sourceOffset = levels.back().firstIndex;
+        unsigned int targetCount = (unsigned int)(levels[0].count * thresholds[i]);
+        std::vector<unsigned int> lodIndices(sourceCount);
+        unsigned int newCount = 0;
+        if (i == 0) {
+            // Для LOD 1 (средний) пробуем аккуратное упрощение
+            float targetError = 0.05f;
+            newCount = meshopt_simplify(
+                &lodIndices[0], &indices[sourceOffset], sourceCount,
+                &vertices[0].position.x, vertices.size(), sizeof(Vertex),
+                targetCount, targetError
+            );
+        }
+        // Если обычный метод не справился (упростил меньше чем на 15%) 
+        // или если это уже LOD 2 (далекий)
+        if (i == 1 || newCount > targetCount * 1.15f) {
+            // Используем Sloppy (грубый) метод. Он точно дожмет до цели!
+            newCount = meshopt_simplifySloppy(
+                &lodIndices[0], &indices[sourceOffset], sourceCount,
+                &vertices[0].position.x, vertices.size(), sizeof(Vertex),
+                targetCount, 0.1f // допустимая ошибка для sloppy
+            );
+        }
+        lodIndices.resize(newCount);
+        unsigned int newOffset = indices.size();
+        levels.push_back({ newCount, newOffset });
+        std::cout << "LOD " << i + 1 << " (" << (i == 1 ? "Sloppy" : "Smart")
+            << "): " << newCount << " из " << levels[0].count << std::endl;
+        indices.insert(indices.end(), lodIndices.begin(), lodIndices.end());
+    }
     Mesh resultMesh(vertices, indices);
+    resultMesh.lods = levels; // Передаем уровни в меш
     resultMesh.boundingRadius = std::sqrt(maxRadiusSquared);
     return resultMesh;
 }

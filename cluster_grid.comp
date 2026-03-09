@@ -1,30 +1,24 @@
 ﻿#version 430 core
-
 // Мы запускаем по одному потоку на каждый кластер (16x9x24)
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
-
 struct ClusterAABB {
     vec4 minPoint;
     vec4 maxPoint;
 };
-
 layout(std430, binding = 3) writeonly buffer ClusterBuffer {
     ClusterAABB clusters[];
 };
-
 uniform mat4 projection;
 uniform float zNear;
 uniform float zFar;
 uniform uint gridDimX;
 uniform uint gridDimY;
 uniform uint gridDimZ;
-
 // Перевод из NDC в View Space
 vec4 screenToView(vec4 screen) {
     vec4 view = inverse(projection) * screen;
     return view / view.w;
 }
-
 // Находим точку пересечения луча (из 0,0,0) с плоскостью Z
 vec3 lineIntersectionWithZPlane(vec3 start, vec3 end, float zDistance) {
     vec3 direction = end - start;
@@ -32,45 +26,37 @@ vec3 lineIntersectionWithZPlane(vec3 start, vec3 end, float zDistance) {
     float t = (zDistance - dot(normal, start)) / dot(normal, direction);
     return start + t * direction;
 }
-
 void main() {
     uint x = gl_WorkGroupID.x;
     uint y = gl_WorkGroupID.y;
     uint z = gl_WorkGroupID.z;
     uint idx = x + y * gridDimX + z * gridDimX * gridDimY;
-
     // 1. Считаем границы плитки в NDC (от -1 до 1)
     vec2 minNDC = vec2(float(x) / gridDimX, float(y) / gridDimY) * 2.0 - 1.0;
     vec2 maxNDC = vec2(float(x + 1) / gridDimX, float(y + 1) / gridDimY) * 2.0 - 1.0;
-
     // 2. Проецируем углы плитки на плоскость Z = -1 в View Space
     // (Помни, в OpenGL камера смотрит в сторону -Z)
     vec3 minPointView = screenToView(vec4(minNDC, -1.0, 1.0)).xyz;
     vec3 maxPointView = screenToView(vec4(maxNDC, -1.0, 1.0)).xyz;
-
     // 3. Считаем глубину (Z) для этого слоя кластеров (экспоненциальное распределение)
     // Формула: Z = near * (far/near)^(slice / count)
     // Мы берем отрицательные значения, так как камера смотрит в -Z
     float clusterNearZ = -zNear * pow(zFar / zNear, float(z) / gridDimZ);
     float clusterFarZ  = -zNear * pow(zFar / zNear, float(z + 1) / gridDimZ);
-
     // 4. Находим 8 точек углов нашего кластера
     // Точки на ближней плоскости
     vec3 p0 = lineIntersectionWithZPlane(vec3(0), minPointView, clusterNearZ);
     vec3 p1 = lineIntersectionWithZPlane(vec3(0), vec3(maxPointView.x, minPointView.y, minPointView.z), clusterNearZ);
     vec3 p2 = lineIntersectionWithZPlane(vec3(0), vec3(minPointView.x, maxPointView.y, minPointView.z), clusterNearZ);
     vec3 p3 = lineIntersectionWithZPlane(vec3(0), maxPointView, clusterNearZ);
-
     // Точки на дальней плоскости
     vec3 p4 = lineIntersectionWithZPlane(vec3(0), minPointView, clusterFarZ);
     vec3 p5 = lineIntersectionWithZPlane(vec3(0), vec3(maxPointView.x, minPointView.y, minPointView.z), clusterFarZ);
     vec3 p6 = lineIntersectionWithZPlane(vec3(0), vec3(minPointView.x, maxPointView.y, minPointView.z), clusterFarZ);
     vec3 p7 = lineIntersectionWithZPlane(vec3(0), maxPointView, clusterFarZ);
-
     // 5. Вычисляем финальный AABB (минимум и максимум из всех 8 точек)
     vec3 minAABB = min(min(min(p0, p1), min(p2, p3)), min(min(p4, p5), min(p6, p7)));
     vec3 maxAABB = max(max(max(p0, p1), max(p2, p3)), max(max(p4, p5), max(p6, p7)));
-
     clusters[idx].minPoint = vec4(minAABB, 0.0);
     clusters[idx].maxPoint = vec4(maxAABB, 0.0);
 }
