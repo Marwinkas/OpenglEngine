@@ -1,0 +1,239 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Resource Files\Shaders">
+      <UniqueIdentifier>{a7ffa985-40f1-492c-85aa-5c3f1e35fbf0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Models">
+      <UniqueIdentifier>{f214c4e2-074e-42b4-b5b8-ae18f36a6a54}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Render">
+      <UniqueIdentifier>{6df08fdb-66db-4bae-b7e1-79e926b3b38e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\GameObjects">
+      <UniqueIdentifier>{89e94dcd-ec9b-41be-82e3-61d230fd590a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Utils">
+      <UniqueIdentifier>{574eafda-7848-4e2b-887d-db31cf4d3f83}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Shaders">
+      <UniqueIdentifier>{90cc15e2-2cb8-42d1-bb54-46e3e0da211b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\Shaders\postprocessing">
+      <UniqueIdentifier>{ad5ffbf9-4136-4ce6-9f25-045b17e2dc2e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\Shaders\graphic">
+      <UniqueIdentifier>{aa7d6ade-0f05-4bcc-8a81-adf7bb42f7e6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\Shaders\optimization">
+      <UniqueIdentifier>{1a3c5adf-8264-4d7e-a413-c8dc4bb0881d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Utils">
+      <UniqueIdentifier>{970d02bb-38fc-470b-9ff8-edf05ca59e78}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Render">
+      <UniqueIdentifier>{79b19f17-5d12-4cfa-9bab-a0e4c93e5264}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Models">
+      <UniqueIdentifier>{bb479303-87a3-4644-b2f1-7af4ba1ec64f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Shaders">
+      <UniqueIdentifier>{1b054790-3917-4c3e-9cba-3dda527e99bd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\GameObjects">
+      <UniqueIdentifier>{d0b464ee-e889-4f50-b6fa-161c78d49d78}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="VBO.cpp">
+      <Filter>Source Files\Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="VAO.cpp">
+      <Filter>Source Files\Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="EBO.cpp">
+      <Filter>Source Files\Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="glad.c">
+      <Filter>Source Files\Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="Camera.cpp">
+      <Filter>Source Files\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="Render.cpp">
+      <Filter>Source Files\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="stb.cpp">
+      <Filter>Source Files\Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="Model.cpp">
+      <Filter>Source Files\Models</Filter>
+    </ClCompile>
+    <ClCompile Include="Material.cpp">
+      <Filter>Source Files\Models</Filter>
+    </ClCompile>
+    <ClCompile Include="Mesh.cpp">
+      <Filter>Source Files\Models</Filter>
+    </ClCompile>
+    <ClCompile Include="Texture.cpp">
+      <Filter>Source Files\Models</Filter>
+    </ClCompile>
+    <ClCompile Include="shaderClass.cpp">
+      <Filter>Source Files\Shaders</Filter>
+    </ClCompile>
+    <ClCompile Include="PostProcessingShader.cpp">
+      <Filter>Source Files\Shaders</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Model.h">
+      <Filter>Header Files\Models</Filter>
+    </ClInclude>
+    <ClInclude Include="MeshRenderer.h">
+      <Filter>Header Files\Models</Filter>
+    </ClInclude>
+    <ClInclude Include="Mesh.h">
+      <Filter>Header Files\Models</Filter>
+    </ClInclude>
+    <ClInclude Include="Material.h">
+      <Filter>Header Files\Models</Filter>
+    </ClInclude>
+    <ClInclude Include="Camera.h">
+      <Filter>Header Files\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="Render.h">
+      <Filter>Header Files\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="Light.h">
+      <Filter>Header Files\GameObjects</Filter>
+    </ClInclude>
+    <ClInclude Include="GameObject.h">
+      <Filter>Header Files\GameObjects</Filter>
+    </ClInclude>
+    <ClInclude Include="Serializer.h">
+      <Filter>Header Files\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="SkyAtmosphere.h">
+      <Filter>Header Files\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="Texture.h">
+      <Filter>Header Files\Models</Filter>
+    </ClInclude>
+    <ClInclude Include="UI.h">
+      <Filter>Header Files\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="Window.h">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Transform.h">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="CullingShader.h">
+      <Filter>Header Files\Shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="LitShader.h">
+      <Filter>Header Files\Shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="PostProcessingShader.h">
+      <Filter>Header Files\Shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="shaderClass.h">
+      <Filter>Header Files\Shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="ShadowShader.h">
+      <Filter>Header Files\Shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="EBO.h">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="VAO.h">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="VBO.h">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="bloom_blur.frag">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="bloom_threshold.frag">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="blur.frag">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="camera_fx.frag">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="final.frag">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="framebuffer.vert">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="ssao.frag">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="ssgi.frag">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="default.vert">
+      <Filter>Resource Files\Shaders\graphic</Filter>
+    </None>
+    <None Include="default.frag">
+      <Filter>Resource Files\Shaders\graphic</Filter>
+    </None>
+    <None Include="shadowCubeMap.frag">
+      <Filter>Resource Files\Shaders\graphic</Filter>
+    </None>
+    <None Include="shadowCubeMap.geom">
+      <Filter>Resource Files\Shaders\graphic</Filter>
+    </None>
+    <None Include="shadowCubeMap.vert">
+      <Filter>Resource Files\Shaders\graphic</Filter>
+    </None>
+    <None Include="shadowMap.frag">
+      <Filter>Resource Files\Shaders\graphic</Filter>
+    </None>
+    <None Include="shadowMap.vert">
+      <Filter>Resource Files\Shaders\graphic</Filter>
+    </None>
+    <None Include="sky.frag">
+      <Filter>Resource Files\Shaders\graphic</Filter>
+    </None>
+    <None Include="sky.vert">
+      <Filter>Resource Files\Shaders\graphic</Filter>
+    </None>
+    <None Include="cluster_grid.comp">
+      <Filter>Resource Files\Shaders\optimization</Filter>
+    </None>
+    <None Include="combine.frag">
+      <Filter>Resource Files\Shaders\optimization</Filter>
+    </None>
+    <None Include="culling.comp">
+      <Filter>Resource Files\Shaders\optimization</Filter>
+    </None>
+    <None Include="hiz.comp">
+      <Filter>Resource Files\Shaders\optimization</Filter>
+    </None>
+    <None Include="light_culling.comp">
+      <Filter>Resource Files\Shaders\optimization</Filter>
+    </None>
+  </ItemGroup>
+</Project>
