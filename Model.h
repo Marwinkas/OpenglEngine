@@ -18,11 +18,16 @@ class Model
 { 
 public: 
     std::vector<Mesh> meshes;
+    std::vector<std::string> loadedMaterialPaths;
     std::string directory;
-    Model(std::string const& path);
+    std::string projectRoot;
+    Model(std::string const& path, std::string const& root);
 private:
     void loadModel(std::string const& path);
-    void processNode(aiNode* node, const aiScene* scene);
-    Mesh processMesh(aiMesh* mesh, const aiScene* scene);
+    void processNode(aiNode* node, const aiScene* scene, std::string const& modelPath);
+    // ИЗМЕНЕНО: Добавили путь к модели для сохранения материалов
+    Mesh processMesh(aiMesh* mesh, const aiScene* scene, std::string const& modelPath);
+    // НОВОЕ: Функция вытаскивания текстур из Assimp
+    std::string loadMaterialTexture(aiMaterial* mat, aiTextureType type, std::string typeName);
 };
 #endif

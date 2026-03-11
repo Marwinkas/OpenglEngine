@@ -75,61 +75,66 @@ float worldToNDCDepth(vec3 worldPos) {
 float CalculateContactShadow(vec3 worldPos, vec3 worldNormal) {
     if (!enableContactShadows) return 1.0;
 
+    // 1. ПЛАВНОЕ ИСЧЕЗНОВЕНИЕ ВДАЛИ (чтобы не маршить лучи там, где тени не видно)
+    float distToCam = distance(camPos, worldPos);
+    float maxVisibleDist = 30.0; 
+    float fadeStart = 20.0;      
+    
+    if (distToCam > maxVisibleDist) return 1.0;
+    float fadeFactor = 1.0 - smoothstep(fadeStart, maxVisibleDist, distToCam);
+
     vec3 rayDir = normalize(-sunDirFog); 
     float dither = texture(noiseTexture, gl_FragCoord.xy / 256.0).r;
     
-    // Сдвигаем начало
-    vec3 rayOrigin = worldPos + worldNormal * 0.01;
+    // 2. ДИНАМИЧЕСКИЙ ОТСТУП (Магия исправления багов каждые пару метров)
+    // Чем дальше камера, тем сильнее выталкиваем луч из геометрии
+    float bias = 0.02 + (distToCam * 0.005); 
+    vec3 rayOrigin = worldPos + worldNormal * bias;
     
     float currentT = 0.0;
-    float maxDist = contactShadowLength;
+    float maxDist = min(contactShadowLength, distToCam * 0.1); 
     
-    // Начинаем с низкого (детального) уровня
     int currentMip = 0;
-    int maxSteps = contactShadowSteps; // Теперь с Hi-Z мы можем позволить себе больше точности
+    int maxSteps = contactShadowSteps; 
+
+    float shadowIntensity = 1.0; 
+
+    // 3. Динамическая толщина объекта (чтобы луч не пролетал насквозь вдалеке)
+    float dynamicThickness = contactShadowThickness * (1.0 + distToCam * 0.05);
 
     for (int i = 0; i < maxSteps; i++) {
-        vec3 sampleWorldPos = rayOrigin + rayDir * (currentT + dither * 0.01);
+        vec3 sampleWorldPos = rayOrigin + rayDir * (currentT + dither * (maxDist / maxSteps));
         vec2 sampleUV = worldPosToUV(sampleWorldPos);
 
         if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0) break;
 
-        // 1. Читаем глубину из Hi-Z на текущем уровне детализации
         float hiZDepth = textureLod(hiZTexture, sampleUV, currentMip).r;
         float rayDepth = worldToNDCDepth(sampleWorldPos);
 
-        // 2. Проверяем столкновение
         if (rayDepth > hiZDepth) {
-            // Если мы на самом детальном уровне (0) - значит это реальный контакт
             if (currentMip == 0) {
-                float sceneWorldZ = texture(positionTexture, sampleUV).rgb.z; // Для проверки толщины
-                float thickness = contactShadowThickness;
+                vec3 hitWorldPos = texture(positionTexture, sampleUV).rgb;
+                float actualDist = distance(hitWorldPos, sampleWorldPos);
                 
-                if (abs(distance(camPos, sampleWorldPos) - distance(camPos, texture(positionTexture, sampleUV).rgb)) < thickness) {
-                    return clamp(currentT / contactShadowLength, 0.0, 1.0);
+                // Проверяем с динамической толщиной!
+                if (actualDist < dynamicThickness) {
+                    shadowIntensity = clamp(currentT / maxDist, 0.0, 1.0);
+                    break;
                 }
-                
-                // Если это была "стена" (слишком толстый объект), просто идем дальше
-                currentT += contactShadowLength * 0.05;
+                currentT += (maxDist / float(maxSteps));
             } else {
-                // Если мы были на грубом уровне - спускаемся ниже, чтобы уточнить место удара
                 currentMip--;
             }
         } else {
-            // 3. ПУСТОТА! Можем сделать большой прыжок
-            // Чем выше уровень пирамиды, тем больше прыжок
-            currentT += (contactShadowLength / float(maxSteps)) * (1.0 + float(currentMip));
-            
-            // Пытаемся подняться выше по пирамиде, чтобы ускорить марш
+            currentT += (maxDist / float(maxSteps)) * (1.0 + float(currentMip));
             if (currentMip < hiZMipCount - 2) currentMip++;
         }
 
         if (currentT > maxDist) break;
     }
 
-    return 1.0;
+    return mix(1.0, shadowIntensity, fadeFactor);
 }
-
 
 
 float random(vec2 uv) {
@@ -203,6 +208,9 @@ void main() {
     vec3 centerPos = texture(positionTexture, texCoords).rgb;
     bool isSky = length(centerPos) < 0.01;
     vec3 finalSceneColor = vec3(0.0);
+    finalSceneColor = texture(screenTexture, texCoords).rgb;
+    FragColor = vec4(finalSceneColor, 1.0);
+    return;
     if (isSky) {
         finalSceneColor = texture(screenTexture, texCoords).rgb;
     } else {

@@ -192,7 +192,7 @@ void PostProcessingShader::Bind(Window& window) {
 }
 static glm::mat4 lastViewProj = glm::mat4(1.0f);
 void PostProcessingShader::Update(Window& window, float crntTime, Camera& camera, UI& ui, glm::vec3 sunDir, unsigned int uboLights, ShadowShader& shadowshader
-, unsigned int& voxelTexture, glm::vec3 gridMin, glm::vec3 gridMax) {
+) {
     glBindFramebuffer(GL_READ_FRAMEBUFFER, FBO);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, resolveFBO);
     for (int i = 0; i < 3; ++i) {
@@ -261,42 +261,7 @@ void PostProcessingShader::Update(Window& window, float crntTime, Camera& camera
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, postPositionTexture);
     glUniform1i(glGetUniformLocation(ssaoBlurShader.ID, "positionTexture"), 1);
-    if (ui.ppSettings.enableSSGI) {
-                                  int numCascades = 4;
-                int rcWidth = window.width / 2;
-        int rcHeight = window.height / 2;
-        GLuint groupsX = (rcWidth + 7) / 8;
-        GLuint groupsY = (rcHeight + 7) / 8;
-                rcRaycastShader.Activate();
-        glUniformMatrix4fv(glGetUniformLocation(rcRaycastShader.ID, "view"), 1, GL_FALSE, glm::value_ptr(camera.GetViewMatrix()));
-        glUniformMatrix4fv(glGetUniformLocation(rcRaycastShader.ID, "projection"), 1, GL_FALSE, glm::value_ptr(camera.GetProjectionMatrix(45.0f, 0.1f, 1000.0f, false)));
-        glUniform3fv(glGetUniformLocation(rcRaycastShader.ID, "camPos"), 1, glm::value_ptr(camera.Position));
-        glUniform1f(glGetUniformLocation(rcRaycastShader.ID, "time"), crntTime);                 glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, postPositionTexture);
-        glUniform1i(glGetUniformLocation(rcRaycastShader.ID, "positionTexture"), 0);
-        glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, postNormalTexture);
-        glUniform1i(glGetUniformLocation(rcRaycastShader.ID, "normalTexture"), 1);
-        glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, postProcessingTexture);         glUniform1i(glGetUniformLocation(rcRaycastShader.ID, "colorTexture"), 2);
-        glActiveTexture(GL_TEXTURE3);
-        glBindTexture(GL_TEXTURE_3D, voxelTexture);         glUniform1i(glGetUniformLocation(rcRaycastShader.ID, "voxelTexture"), 3);
-        glUniform3fv(glGetUniformLocation(rcRaycastShader.ID, "gridMin"), 1, glm::value_ptr(gridMin));
-        glUniform3fv(glGetUniformLocation(rcRaycastShader.ID, "gridMax"), 1, glm::value_ptr(gridMax));
-        glBindImageTexture(0, rcCascadeArray, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-        for (int c = 0; c < numCascades; ++c) {
-            glUniform1i(glGetUniformLocation(rcRaycastShader.ID, "cascadeLevel"), c);
-            glDispatchCompute(groupsX, groupsY, 1);
-        }
-        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-                rcCollapseShader.Activate();
-        glBindImageTexture(0, rcCascadeArray, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA16F);
-        glBindImageTexture(1, rcMergedTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-        glUniform1i(glGetUniformLocation(rcCollapseShader.ID, "maxCascades"), numCascades);
-        for (int c = numCascades - 1; c >= 0; --c) {
-            glUniform1i(glGetUniformLocation(rcCollapseShader.ID, "cascadeLevel"), c);
-            glDispatchCompute(groupsX, groupsY, 1);
-            glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);         }
-    }
-    else {
-    }
+    
     bool horizontal = true, first_iteration = true;
     int amount = ui.ppSettings.bloomBlurIterations * 2;     if (ui.ppSettings.enableBloom) {
                 glViewport(0, 0, window.width / 4, window.height / 4);

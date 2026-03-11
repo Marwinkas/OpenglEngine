@@ -11,7 +11,10 @@
 #include "VoxelShader.h"
 #include "GLTexture.h"
 #include "GLBuffer.h"
+#include <entt/entt.hpp>
+#include "Components.h"
 #include <map> 
+class DefferedShader;
 class UI;
 class CullingShader;
 struct LightGrid {
@@ -32,37 +35,38 @@ public:
 	GLBuffer atomicCounterBuffer;
 	GLBuffer uboLights;
 
-	GLTexture voxelTex;
-	VoxelShader voxelShader;
-	Shader voxelMipmapShader;
-
 	SkyAtmosphere sky; // Твое небо
-	bool needsVoxelization = true;
-	int voxelGridSize = 128;
-	float voxelWorldSize = 100.0f;
-	glm::vec3 gridMin;
-	glm::vec3 gridMax;
 	glm::vec3 sunDir = glm::vec3(0.0f, -1.0f, 0.0f);
 
+	GLuint gBufferFBO;
+	GLuint gPositionMetallic;
+	GLuint gNormalRoughness;
+	GLuint gAlbedoAO;
+	GLuint rboDepth;
+
+	// Метод инициализации
+	void InitGBuffer(int width, int height);
 
 	// Главная функция стала гораздо короче
-	void Draw(std::vector<GameObject>& Objects, LitShader& litshader, ShadowShader& shadowshader, PostProcessingShader& postprocessingshader, Window& window, Camera& camera, double crntTime, UI& ui, CullingShader& cullingshader);
+	void Draw(entt::registry& registry, LitShader& geometryShader, ShadowShader& shadowshader, PostProcessingShader& postprocessingshader, Window& window, Camera& camera, double crntTime, UI& ui, CullingShader& cullingshader, DefferedShader& defferedShader);
 
 	void UpdateClusterGrid(Camera& camera, Window& window, CullingShader& cullingshader);
 	glm::mat4 CalculateCalculateCSMMatrix(float nearP, float farP, Camera& camera, float shadowSize);
-	void Voxelization(glm::vec3 Position, std::vector<GameObject>& Objects, Window& window);
 
 private:
-	// --- НОВЫЕ ПОМОЩНИКИ, ЧТОБЫ РАЗГРУЗИТЬ DRAW ---
+	
 
-	void UpdateTransforms(std::vector<GameObject>& Objects);
-	glm::vec3 SetupLightsAndUBO(std::vector<GameObject>& Objects, ShadowShader& shadowshader);
+	void UpdateTransforms(entt::registry& registry);
 
-	// Тот самый универсальный метод, который убрал 150 строк дублирования
-	void DispatchGPUCulling(Mesh* mesh, std::vector<GameObject*>& batchObjects, const glm::mat4& viewProj, const glm::vec3& camPos, bool isShadowPass, CullingShader& cullingshader, Window& window, GLuint hiZTex);
+	glm::vec3 SetupLightsAndUBO(entt::registry& registry, ShadowShader& shadowshader);
 
-	std::vector<glm::mat4> RenderCSM(Camera& camera, std::map<Mesh*, std::vector<GameObject*>>& shadowBatches, ShadowShader& shadowshader, CullingShader& cullingshader, Window& window);
-	void RenderAtlasShadows(Camera& camera, std::vector<GameObject>& Objects, std::map<Mesh*, std::vector<GameObject*>>& shadowBatches, ShadowShader& shadowshader, CullingShader& cullingshader, Window& window);
-	void RenderMainPass(Camera& camera, Window& window, std::map<std::pair<Mesh*, Material*>, std::vector<GameObject*>>& mainBatches, std::vector<glm::mat4>& sunMatrices,LitShader& litshader, ShadowShader& shadowshader, CullingShader& cullingshader, PostProcessingShader& ppShader);
+	// Вспомогательные функции тоже меняются (теперь они принимают std::vector<entt::entity> вместо std::vector<GameObject*>)
+	void DispatchGPUCulling(Mesh* mesh, std::vector<entt::entity>& batchObjects, entt::registry& registry, const glm::mat4& viewProj, const glm::vec3& camPos, bool isShadowPass, CullingShader& cullingshader, Window& window, GLuint hiZTex);
+
+	std::vector<glm::mat4> RenderCSM(Camera& camera, std::map<Mesh*, std::vector<entt::entity>>& shadowBatches, entt::registry& registry, ShadowShader& shadowshader, CullingShader& cullingshader, Window& window);
+
+	void RenderAtlasShadows(Camera& camera, entt::registry& registry, std::map<Mesh*, std::vector<entt::entity>>& shadowBatches, ShadowShader& shadowshader, CullingShader& cullingshader, Window& window);
+
+	void RenderMainPass(Camera& camera, Window& window, std::map<std::pair<Mesh*, Material*>, std::vector<entt::entity>>& mainBatches, entt::registry& registry, std::vector<glm::mat4>& sunMatrices, LitShader& geometryShader, DefferedShader& deferredShader, ShadowShader& shadowshader, CullingShader& cullingshader, PostProcessingShader& ppShader);
 };
 #endif

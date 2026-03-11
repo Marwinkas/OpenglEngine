@@ -1,29 +1,26 @@
 ﻿#version 430 core
-#extension GL_ARB_bindless_texture : require 
 
 layout (location = 0) out vec4 FragColor;
-layout (location = 1) out vec3 NormalOut;
-layout (location = 2) out vec3 PositionOut;
-
-in vec3 crntPos;
-in vec3 Normal;
 in vec2 texCoord;
-in mat3 TBN;
+
+uniform sampler2D gPositionMetallic;
+uniform sampler2D gNormalRoughness;
+uniform sampler2D gAlbedoAO;
 
 uniform vec2 screenSize;
+uniform vec3 camPos;
+uniform mat4 view; 
+
 uniform samplerCube shadowCubeMap;
 uniform vec3 lightPos;      
 uniform vec4 lightColor;    
 uniform float farPlane;
 uniform vec3 sunDir = vec3(0.0, -0.5, 0.0);        
 uniform vec4 sunColor;      
-uniform vec3 camPos;
 uniform float time;
 uniform sampler2DArray sunShadowMap; 
 uniform mat4 sunLightSpaceMatrices[4]; 
-uniform float cascadeSplits[4]; 
-uniform float heightScale = 0.02;
-uniform float normalStrength = 1.0;
+uniform float cascadeSplits[4];
 
 uniform sampler2D noiseTexture; // Сюда теперь будет приходить наш красивый голубой шум
 uniform float noiseScale = 0.1;
@@ -70,32 +67,6 @@ layout(std140) uniform LightBlock {
 uniform sampler2D shadowAtlas;
 uniform float atlasResolution;
 uniform float tileSize;
-
-struct MaterialData {
-    sampler2D albedoHandle;
-    sampler2D normalHandle;
-    sampler2D heightHandle;
-    sampler2D metallicHandle;
-    sampler2D roughnessHandle;
-    sampler2D aoHandle;
-    int hasAlbedo;
-    int hasNormal;
-    int hasHeight;
-    int hasMetallic;
-    int hasRoughness;
-    int hasAO;
-    
-    int useTriplanar; // НОВАЯ ГАЛОЧКА! (1 - вкл, 0 - выкл)
-    float triplanarScale; // НОВЫЙ МАСШТАБ ТЕКСТУРЫ (например, 0.5)
-    vec2 padding; 
-};
-
-layout(std430, binding = 2) readonly buffer MaterialBlock {
-    MaterialData materials[];
-};
-
-uniform int materialID;
-
 struct LightGrid {
     uint offset;
     uint count;
@@ -109,7 +80,6 @@ uniform uint gridDimY = 9;
 uniform uint gridDimZ = 24;
 uniform float zNear = 0.1;
 uniform float zFar = 1000.0;
-uniform mat4 view; 
 uniform float lightSize = 20.0;
 
 const vec2 poissonDisk[16] = vec2[](
@@ -258,42 +228,6 @@ float AtlasShadowCalculation(vec3 fragPos, vec3 N, vec3 L, Light light) {
     mat2 rot = mat2(c, -s, s, c);
     
     return CalculatePCSS_Atlas(atlasUV, tileMin, tileMax, currentDepth, bias, rot);
-}
-
-vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir) {
-    MaterialData mat = materials[materialID];
-    
-    // Динамическое количество слоев (смотрим в упор - 8, под углом - 32)
-    float minLayers = 8.0;
-    float maxLayers = 32.0;
-    float numLayers = mix(maxLayers, minLayers, max(dot(vec3(0.0, 0.0, 1.0), viewDir), 0.0));  
-
-    float layerDepth = 1.0 / numLayers;
-    float currentLayerDepth = 0.0;
-    
-    // Вычисляем размер шага
-    vec2 P = viewDir.xy / viewDir.z * heightScale; 
-    vec2 deltaTexCoords = P / numLayers;
-    
-    vec2 currentTexCoords = texCoords;
-    float currentDepthMapValue = texture(mat.heightHandle, currentTexCoords).r;
-    
-    // Шагаем "вглубь" текстуры, пока не врежемся в рельеф
-    while(currentLayerDepth < currentDepthMapValue) {
-        currentTexCoords -= deltaTexCoords;
-        currentDepthMapValue = texture(mat.heightHandle, currentTexCoords).r;  
-        currentLayerDepth += layerDepth;  
-    }
-    
-    // Делаем плавный переход между шагами (интерполяция)
-    vec2 prevTexCoords = currentTexCoords + deltaTexCoords;
-    float afterDepth  = currentDepthMapValue - currentLayerDepth;
-    float beforeDepth = texture(mat.heightHandle, prevTexCoords).r - currentLayerDepth + layerDepth;
-    
-    float weight = afterDepth / (afterDepth - beforeDepth);
-    vec2 finalTexCoords = prevTexCoords * weight + currentTexCoords * (1.0 - weight);
-
-    return finalTexCoords;
 }
 
 vec3 ACESFilm(vec3 x) {
@@ -461,81 +395,30 @@ float PointShadowCalculation_Atlas(vec3 fragPos, vec3 N, Light light) {
 }
 
 void main() {
-    MaterialData mat = materials[materialID];
-    
-    // Базовые вектора
-    vec3 V = normalize(camPos - crntPos);
-    vec3 N = normalize(Normal);
-    vec2 finalUV = texCoord;
-    
-    // Будущие значения материала
-    vec3 albedo;
-    float metallic, roughness, ao;
-    vec3 worldNormal = N; // По умолчанию нормаль плоская (геометрическая)
+    // 1. Распаковываем данные из G-Buffer'а
+    vec4 posMetal = texture(gPositionMetallic, texCoord);
+    vec4 normRough = texture(gNormalRoughness, texCoord);
+    vec4 albedoAo = texture(gAlbedoAO, texCoord);
 
-    // --- БЛОК 1: WORLD ALIGNED (TRIPLANAR) ---
-    if (mat.useTriplanar == 1) {
-        float scale = mat.triplanarScale;
-        
-        // Цвет: Переводим sRGB текстуру в линейное пространство для PBR
-        vec3 rawAlbedo = (mat.hasAlbedo == 1) ? SampleTriplanar(mat.albedoHandle, crntPos, N, scale).rgb : vec3(0.8);
-        albedo = pow(rawAlbedo, vec3(2.2)); 
+    vec3 crntPos = posMetal.rgb;
+    float metallic = posMetal.a;
+    vec3 worldNormal = normRough.rgb;
+    float roughness = normRough.a;
+    vec3 albedo = albedoAo.rgb;
+    float ao = albedoAo.a;
 
-        metallic = (mat.hasMetallic == 1) ? SampleTriplanar(mat.metallicHandle, crntPos, N, scale).r : 0.0;
-        roughness = (mat.hasRoughness == 1) ? SampleTriplanar(mat.roughnessHandle, crntPos, N, scale).r : 0.9;
-        ao = (mat.hasAO == 1) ? SampleTriplanar(mat.aoHandle, crntPos, N, scale).r : 1.0;
-        
-        // Нормаль: Правильное сохранение в worldNormal
-        if (mat.hasNormal == 1) {
-            worldNormal = TriplanarNormal(mat.normalHandle, crntPos, N, scale);
-        }
-    } 
-    // --- БЛОК 2: СТАНДАРТНОЕ ЧТЕНИЕ (UV + PARALLAX) ---
-    else {
-        // 1. Сначала считаем Parallax (смещение UV)
-        // ИСПРАВЛЕНО: == 1 вместо == 12
-        if (mat.hasHeight == 1) { 
-            vec3 viewDirTangent = normalize(TangentViewPos - TangentFragPos);
-            // Параллакс работает только если мы не смотрим параллельно стене
-            if (abs(viewDirTangent.z) > 0.001) {
-                finalUV = ParallaxMapping(texCoord, viewDirTangent);
-            }
-            // Отсекаем "вылезшие" текстуры на углах геометрии
-            if(finalUV.x > 1.0 || finalUV.y > 1.0 || finalUV.x < 0.0 || finalUV.y < 0.0) {
-                discard;
-            }
-        }
-
-        // 2. Читаем все текстуры по новым (сдвинутым) UV
-        vec3 rawAlbedo = (mat.hasAlbedo == 1) ? texture(mat.albedoHandle, finalUV).rgb : vec3(0.8);
-        albedo = pow(rawAlbedo, vec3(2.2)); // Конвертация sRGB -> Linear
-        
-        metallic = (mat.hasMetallic == 1) ? texture(mat.metallicHandle, finalUV).r : 0.0;
-        roughness = (mat.hasRoughness == 1) ? texture(mat.roughnessHandle, finalUV).r : 0.9;
-        ao = (mat.hasAO == 1) ? texture(mat.aoHandle, finalUV).r : 1.0;
-
-        // 3. Читаем и разворачиваем нормаль
-        if(mat.hasNormal == 1) {
-            vec3 tangentNormal = texture(mat.normalHandle, finalUV).rgb * 2.0 - 1.0;
-            
-            // ИНВЕРСИЯ ДЛЯ DIRECTX КАРТ (если текстура из UE или интернета)
-            // Если кирпичи выглядят вывернутыми наизнанку, раскомментируй строку ниже:
-            tangentNormal.y = -tangentNormal.y; 
-            
-            worldNormal = normalize(TBN * normalize(tangentNormal));
-        }
+    // Если нормаль нулевая — это пустое небо, свет тут не считаем!
+    if (length(worldNormal) < 0.1) {
+        discard; 
     }
 
-    // Выводим данные в G-Buffer (для пост-эффектов типа SSAO и Контактных теней)
-    NormalOut = worldNormal;
-    PositionOut = crntPos;
+    vec3 V = normalize(camPos - crntPos);
+    vec3 N = normalize(worldNormal);// Используем точную мировую нормаль с текстур
     
-    // --- ОСВЕЩЕНИЕ ---
     vec3 resultRadiance = vec3(0.0);
-    // Чуть-чуть подсветим тени, чтобы не были абсолютно черными
     vec3 ambient = vec3(0.03) * albedo * ao; 
-    
-    // Кластерный куллинг (без изменений, он у тебя отличный)
+
+    // --- НАЧИНАЕТСЯ КЛАСТЕРНОЕ ОСВЕЩЕНИЕ ---
     vec4 viewPos = view * vec4(crntPos, 1.0);
     float zView = -viewPos.z;         
     uint clusterX = uint(gl_FragCoord.x / (screenSize.x / float(gridDimX)));
@@ -550,6 +433,7 @@ void main() {
         uint lightIndex = globalIndexList[offset + i];
         PointLightData rawLight = lights[lightIndex];
         
+        // В точности твой старый цикл for...
         Light light;
         light.type = int(rawLight.posType.w);
         light.position = rawLight.posType.xyz;
@@ -567,26 +451,18 @@ void main() {
         float attenuation = 1.0;
         vec3 radiance = light.color * light.intensity;
         
-        if (light.type == 0) { // Directional
+        if (light.type == 0) { 
             L = normalize(-light.direction);
-            if (light.castShadows == 1) {
-                // ВНИМАНИЕ: Для теней мы используем геометрическую нормаль N, 
-                // чтобы избежать самозатенения (acne) на микрорельефе!
-                float shadow = SunShadowCalculation(crntPos, N, L);
-                radiance *= (1.0 - shadow);
-            }
+            if (light.castShadows == 1) radiance *= (1.0 - SunShadowCalculation(crntPos, N, L));
         }
-        else if (light.type == 1) { // Point
+        else if (light.type == 1) { 
             L = normalize(light.position - crntPos);
             float dist = length(light.position - crntPos);
             float falloff = clamp(1.0 - (dist * dist) / (light.radius * light.radius), 0.0, 1.0);
             attenuation = (falloff * falloff) / (dist * dist + 0.001);
-            if (light.castShadows == 1) {
-                float shadow = PointShadowCalculation_Atlas(crntPos, N, light);
-                attenuation *= (1.0 - shadow);
-            }
+            if (light.castShadows == 1) attenuation *= (1.0 - PointShadowCalculation_Atlas(crntPos, N, light));
         }
-        else if (light.type == 2) { // Spot
+        else if (light.type == 2) { 
             L = normalize(light.position - crntPos);
             float dist = length(light.position - crntPos);
             float falloff = clamp(1.0 - (dist * dist) / (light.radius * light.radius), 0.0, 1.0);
@@ -595,27 +471,29 @@ void main() {
             float epsilon = light.innerCone - light.outerCone;
             float spotEffect = clamp((theta - light.outerCone) / epsilon, 0.0, 1.0);
             attenuation *= spotEffect;
-            if (light.castShadows == 1) {
-                float shadow = AtlasShadowCalculation(crntPos, N, L, light);
-                attenuation *= (1.0 - shadow);
-            }
+            if (light.castShadows == 1) attenuation *= (1.0 - AtlasShadowCalculation(crntPos, N, L, light));
         }
-        else if (light.type == 4) { // Sky
-            float skyBlend = 0.5 * (worldNormal.y + 1.0); 
-            vec3 skyRadiance = light.color * light.intensity * skyBlend;
-            vec3 groundColor = light.color * 0.2; 
-            vec3 groundRadiance = groundColor * light.intensity * (1.0 - skyBlend);
-            ambient += (skyRadiance + groundRadiance) * albedo * ao;
+        else if (light.type == 4) { 
+            float skyBlend = 0.5 * (N.y + 1.0); 
+            ambient += (light.color * light.intensity * skyBlend + (light.color * 0.2) * light.intensity * (1.0 - skyBlend)) * albedo * ao;
             continue;         
         }
         
         if (attenuation <= 0.0) continue;
         radiance *= attenuation;
         
-        // ВНИМАНИЕ: Для PBR мы используем worldNormal (с рельефом кирпичей!)
-        resultRadiance += CalculatePBR(worldNormal, V, L, albedo, metallic, roughness, radiance);
+        resultRadiance += CalculatePBR(N, V, L, albedo, metallic, roughness, radiance);
     }
     
+    // Считаем финальный свет (он сейчас в Linear HDR)
     vec3 finalColor = ambient + resultRadiance;
+
+    // 1. Тонмаппинг (HDR -> LDR): Делаем пересветы кинематографичными
+    finalColor = ACESFilm(finalColor);
+
+    // 2. ФИНАЛЬНАЯ Гамма-коррекция (Linear -> sRGB для монитора)
+    // Без этой строчки всё будет выглядеть тёмным и контрастным!
+    finalColor = pow(finalColor, vec3(1.0 / 2.2));
+
     FragColor = vec4(finalColor, 1.0);
 }

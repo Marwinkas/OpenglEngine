@@ -6,6 +6,10 @@
 #include "MeshRenderer.h"
 #include <string>
 #include <vector>
+#include "Components.h"
+
+namespace physx { class PxRigidActor; }
+
 class GameObject {
 public:
     GameObject() {}
@@ -13,6 +17,8 @@ public:
         bool hasMesh = false;
     bool hasLight = false;
         std::string modelPath = "";
+        bool updatePhysicsTransform = false; // Сигнал для ImGuizmo: "Я сдвинул объект, обнови PhysX!"
+        bool rebuildPhysics = false;         // Сигнал для UI: "Я поменял массу/форму, пересобери PhysX!"
     std::vector<std::string> materialPaths;
     bool isStatic = false;
     bool isVisible = true;

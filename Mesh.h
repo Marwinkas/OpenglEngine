@@ -22,7 +22,7 @@ public:
     std::vector <GLuint> indices;
     std::vector<LODLevel> lods;
     void* mappedInstanceVBO = nullptr;
-
+    std::string name; 
     VAO VAO;
     // ДОБАВЛЯЕМ СЮДА, ЧТОБЫ ОНИ НЕ УДАЛЯЛИСЬ:
     VBO VBO_obj;

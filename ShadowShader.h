@@ -15,14 +15,14 @@ public:
     }
     unsigned int atlasFBO;
     unsigned int shadowAtlas;
-    int atlasResolution = 8192;     
-    int tileSize = 2048;            
+    int atlasResolution = 512;     
+    int tileSize = 128;            
     unsigned int sunShadowArray;
     unsigned int staticSunShadowArray; // Кэш для статики
     bool staticShadowsDirty = true;    // Флаг: нужно ли перерисовать статику?
     bool sunIsStatic = false;
     unsigned int sunFBO;
-    int sunShadowSize = 2048;     
+    int sunShadowSize = 512;     
     std::vector<float> cascadeSplits = { 20.0f, 50.0f, 150.0f, 1000.0f }; 
 
     void Init() override {

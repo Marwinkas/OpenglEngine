@@ -18,7 +18,9 @@ namespace fs = std::filesystem;
 #include "Render.h"
 #include "Serializer.h"
 #include "CullingShader.h"
-#include "PhysicsEngine.h"
+#include "PhysicsEngine.h" 
+#include "DefferedShader.h"
+using namespace entt;
 std::vector<Vertex> cubeVertices = {
 		Vertex{glm::vec3(-1,-1, 1), glm::vec3(0,0,1), glm::vec3(0), glm::vec2(0,0), glm::vec3(1,0,0), glm::vec3(0,1,0)},
 	Vertex{glm::vec3(1,-1, 1),  glm::vec3(0,0,1), glm::vec3(0), glm::vec2(1,0), glm::vec3(1,0,0), glm::vec3(0,1,0)},
@@ -98,9 +100,10 @@ int main()
 
         PostProcessingShader postprocessingshader(window);
         ShadowShader shadowshader;
+        DefferedShader deferredshader;
         Camera camera(window.width, window.height, glm::vec3(0.0f, 0.0f, 2.0f));
         Render render;
-
+        render.InitGBuffer(window.width, window.height);
         render.UpdateClusterGrid(camera, window, cullingshader);
 
         std::cout << "Initializing Shaders..." << std::endl;
@@ -108,22 +111,43 @@ int main()
 
         PhysicsEngine physicsEngine;
         physicsEngine.Init();
+        physicsEngine.CreateTestScene();
+        
+        float lastFrame = glfwGetTime();
+        physicsEngine.RegisterObjects(Objects);
+
+        entt::registry registry;
+
         while (!glfwWindowShouldClose(window.window))
         {
-            // ... (твой цикл без изменений)
-            glEnable(GL_DEPTH_TEST);
-            glEnable(GL_CULL_FACE);
-            camera.Inputs(window.window);
-            camera.taaFrameIndex++;
-            camera.updateMatrix(45.0f, 0.1f, 1000);
-            static float lastFrame = 0.0f;
             float currentFrame = glfwGetTime();
             float deltaTime = currentFrame - lastFrame;
             lastFrame = currentFrame;
+            if (deltaTime > 0.1f) deltaTime = 0.1f;
 
-            render.Draw(Objects, litshader, shadowshader, postprocessingshader, window, camera, glfwGetTime(), ui, cullingshader);
-            ui.Draw(window, camera, Objects, render);
+            glEnable(GL_DEPTH_TEST);
+            glEnable(GL_CULL_FACE);
+            camera.Inputs(window.window,deltaTime);
+            camera.taaFrameIndex++;
+            camera.updateMatrix(45.0f, 0.1f, 1000);
+            static bool f5Pressed = false;
+            if (glfwGetKey(window.window, GLFW_KEY_F5) == GLFW_PRESS) {
+                if (!f5Pressed) {
+                    camera.TogglePlayMode(physicsEngine);
+                    f5Pressed = true;
+                }
+            }
+            else {
+                f5Pressed = false;
+            }
+            camera.UpdatePhysics(deltaTime);
+            physicsEngine.SyncTransforms(Objects);
             physicsEngine.Update(deltaTime);
+
+            render.Draw(registry, litshader, shadowshader, postprocessingshader, window, camera, glfwGetTime(), ui, cullingshader, deferredshader);
+            ui.Draw(window, camera, registry, render);
+            
+            physicsEngine.ApplyUIChanges(Objects);
             glfwSwapBuffers(window.window);
             glfwPollEvents();
         }

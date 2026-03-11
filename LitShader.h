@@ -30,43 +30,8 @@ public:
 
         return path;
     }
-    LitShader() : Shader("default.vert", "default.frag") {
+    LitShader() : Shader("gbuffer.vert", "gbuffer.frag") {
         Init();
-        // Грузим синий шум. Файл должен лежать в папке с ресурсами.
-        std::string projectFolder = getExecutablePathss() + "/resources/blue_noise.png";
-        blueNoiseTexture = loadBlueNoiseTexture(projectFolder.c_str());
-    }
-
-    // Тот самый метод для загрузки правильного шума
-    GLuint loadBlueNoiseTexture(const char* path) {
-        GLuint textureID;
-        glGenTextures(1, &textureID);
-
-        int width, height, nrChannels;
-        // Синий шум обычно одноканальный или RGB, нам хватит 8-бит
-        unsigned char* data = stbi_load(path, &width, &height, &nrChannels, 0);
-        if (data) {
-            glBindTexture(GL_TEXTURE_2D, textureID);
-            // Используем GL_RED или GL_RGB в зависимости от файла, 
-            // но GL_RGB универсальнее для большинства PNG
-            GLenum format = (nrChannels == 1) ? GL_RED : GL_RGB;
-
-            glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
-
-            // Обязательно REPEAT, чтобы шум бесконечно шел по экрану
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-            // NEAREST, чтобы не размывать драгоценные точки шума
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-            stbi_image_free(data);
-        }
-        else {
-            std::cerr << "Failed to load Blue Noise texture at: " << path << std::endl;
-            stbi_image_free(data);
-        }
-        return textureID;
     }
 
     void Init() override {

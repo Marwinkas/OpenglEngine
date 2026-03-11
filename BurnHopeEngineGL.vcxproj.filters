@@ -58,6 +58,12 @@
     <Filter Include="Resource Files\Shaders\Voxel">
       <UniqueIdentifier>{925e08b4-cea0-44aa-940c-be17eae10e2f}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Physics">
+      <UniqueIdentifier>{7d8e0232-5788-463d-8c15-2aa9015caf85}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Physics">
+      <UniqueIdentifier>{1b66bac1-5cdc-4ecb-ab57-07232858d8c1}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Main.cpp">
@@ -103,7 +109,10 @@
       <Filter>Source Files\Shaders</Filter>
     </ClCompile>
     <ClCompile Include="PhysicsEngine.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\Physics</Filter>
+    </ClCompile>
+    <ClCompile Include="DefferedShader.h">
+      <Filter>Header Files\Shaders</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -183,7 +192,10 @@
       <Filter>Header Files\Utils</Filter>
     </ClInclude>
     <ClInclude Include="PhysicsEngine.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Physics</Filter>
+    </ClInclude>
+    <ClInclude Include="Components.h">
+      <Filter>Header Files\GameObjects</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -211,7 +223,7 @@
     <None Include="ssgi.frag">
       <Filter>Resource Files\Shaders\postprocessing</Filter>
     </None>
-    <None Include="default.vert">
+    <None Include="gbuffer.vert">
       <Filter>Resource Files\Shaders\graphic</Filter>
     </None>
     <None Include="default.frag">
@@ -288,6 +300,15 @@
     </None>
     <None Include="voxel_mipmap.comp">
       <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="gbuffer.frag">
+      <Filter>Resource Files\Shaders\graphic</Filter>
+    </None>
+    <None Include="deferred.vert">
+      <Filter>Resource Files\Shaders\graphic</Filter>
+    </None>
+    <None Include="deferred.frag">
+      <Filter>Resource Files\Shaders\graphic</Filter>
     </None>
   </ItemGroup>
 </Project>

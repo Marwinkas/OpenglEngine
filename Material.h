@@ -1,6 +1,8 @@
 ﻿#ifndef MATERIAL_CLASS_H
 #define MATERIAL_CLASS_H
 #include<string>
+#include <filesystem>
+namespace fs = std::filesystem;
 #include"VAO.h"
 #include"EBO.h"
 #include"Camera.h"
@@ -20,6 +22,8 @@ struct MaterialGPUData {
     int hasMetallic;
     int hasRoughness;
     int hasAO;
+    int useTriplanar = 1;
+    float triplanarScale = 4.0f;
     float padding[2]; 
 };
 class Material

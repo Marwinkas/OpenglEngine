@@ -1,6 +1,14 @@
 ﻿#include"Texture.h"
 #include <stdexcept>
 #include <stdexcept>
+#define GL_COMPRESSED_RGB_S3TC_DXT1_EXT                   0x83F0
+#define GL_COMPRESSED_RGBA_S3TC_DXT1_EXT                  0x83F1
+#define GL_COMPRESSED_RGBA_S3TC_DXT3_EXT                  0x83F2
+#define GL_COMPRESSED_RGBA_S3TC_DXT5_EXT                  0x83F3
+#define GL_COMPRESSED_SRGB_S3TC_DXT1_EXT                  0x8C4C
+#define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT            0x8C4D
+#define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT            0x8C4E
+#define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT            0x8C4F
 Texture::Texture()
 {
 }
@@ -37,79 +45,73 @@ Texture::Texture(int width, int height, const char* texType, GLuint slot)
 }
 Texture::Texture(const char* image, const char* texType, GLuint slot, int typemap)
 {
-	type = texType;
-	int widthImg, heightImg, numColCh;
-	stbi_set_flip_vertically_on_load(false);
-	unsigned char* bytes = stbi_load(image, &widthImg, &heightImg, &numColCh, 0);
-	if (bytes == NULL) {
-		throw std::invalid_argument("Failed to load texture file");
-	}
-	glGenTextures(1, &ID);
-	glActiveTexture(GL_TEXTURE0 + slot);
-	unit = slot;
-	glBindTexture(GL_TEXTURE_2D, ID);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	if (typemap != 2) {
-		int col1 = GL_SRGB_ALPHA;
-		int col2 = GL_RGB8;
-		int col3 = GL_SRGB;
-		if (typemap == 1) {
-			col1 = GL_RGBA;
-			col2 = GL_RGB;
-			col3 = GL_R8;
-		}
-		if (numColCh == 4)
-			glTexImage2D
-			(
-				GL_TEXTURE_2D,
-				0,
-				col1,
-				widthImg,
-				heightImg,
-				0,
-				GL_RGBA,
-				GL_UNSIGNED_BYTE,
-				bytes
-			);
-		else if (numColCh == 3)
-			glTexImage2D
-			(
-				GL_TEXTURE_2D,
-				0,
-				col2,
-				widthImg,
-				heightImg,
-				0,
-				GL_RGB,
-				GL_UNSIGNED_BYTE,
-				bytes
-			);
-		else if (numColCh == 1)
-			glTexImage2D
-			(
-				GL_TEXTURE_2D,
-				0,
-				col3,
-				widthImg,
-				heightImg,
-				0,
-				GL_RED,
-				GL_UNSIGNED_BYTE,
-				bytes
-			);
-		else
-			throw std::invalid_argument("Automatic Texture type recognition failed");
-	}
-	else {
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, widthImg, heightImg, 0, GL_RED, GL_UNSIGNED_BYTE, bytes);
-	}
-	glGenerateMipmap(GL_TEXTURE_2D);
-	stbi_image_free(bytes);
-	makeResident();
-	glBindTexture(GL_TEXTURE_2D, 0);
+    type = texType;
+    int widthImg, heightImg, numColCh;
+    stbi_set_flip_vertically_on_load(false);
+
+    // Пытаемся загрузить. bytes - это просто указатель на массив в оперативной памяти
+    unsigned char* bytes = stbi_load(image, &widthImg, &heightImg, &numColCh, 0);
+
+    if (bytes == NULL) {
+        std::cout << "[Texture Error] Failed to load: " << image << std::endl;
+        return; // Вместо throw лучше просто выйти, чтобы движок не падал
+    }
+
+    glGenTextures(1, &ID);
+    glActiveTexture(GL_TEXTURE0 + slot);
+    unit = slot;
+    glBindTexture(GL_TEXTURE_2D, ID);
+
+    // ВАЖНО: Убираем выравнивание по 4 байта (спасает от 0xC0000005 на странных размерах)
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    GLint internalFormat;
+    GLenum format;
+
+    // Определяем форматы максимально аккуратно
+    if (typemap == 0) { // sRGB (Цвет)
+        if (numColCh == 4) {
+            internalFormat = GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT;
+            format = GL_RGBA;
+        }
+        else if (numColCh == 3) {
+            internalFormat = GL_COMPRESSED_SRGB_S3TC_DXT1_EXT;
+            format = GL_RGB;
+        }
+        else {
+            internalFormat = GL_COMPRESSED_RED_RGTC1;
+            format = GL_RED;
+        }
+    }
+    else { // Linear (Нормали, Маски)
+        if (numColCh == 4) {
+            internalFormat = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
+            format = GL_RGBA;
+        }
+        else if (numColCh == 3) {
+            internalFormat = GL_COMPRESSED_RGB_S3TC_DXT1_EXT;
+            format = GL_RGB;
+        }
+        else {
+            internalFormat = GL_COMPRESSED_RED_RGTC1;
+            format = GL_RED;
+        }
+    }
+
+    // Финальная проверка перед отправкой на GPU
+    if (bytes) {
+        glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, widthImg, heightImg, 0, format, GL_UNSIGNED_BYTE, bytes);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+
+    stbi_image_free(bytes);
+    makeResident();
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 void Texture::texUnit(Shader& shader, const char* uniform, GLuint unit)
 {

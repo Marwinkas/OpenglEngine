@@ -12,6 +12,12 @@
 #include <array>
 #include"shaderClass.h"
 
+class PhysicsEngine;
+
+namespace physx {
+    class PxRigidDynamic;
+}
+
 class Camera
 {
 public:
@@ -28,9 +34,16 @@ public:
     bool firstClick = true;
     int width;
     int height;
-    float speed = 0.1f;
+    float speed = 0.05f;
     float sensitivity = 1.0f;
     int taaFrameIndex = 0;
+
+    // --- НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ РЕЖИМА ИГРЫ ---
+    bool isPlayMode = false;           // Режим полета (false) или ходьбы (true)
+    physx::PxRigidDynamic* playerBody = nullptr; // Наша физическая оболочка
+    bool isGrounded = false;           // Стоим ли мы на полу?
+    float jumpForce = 5.0f;            // Сила прыжка
+    float walkSpeed = 5.0f;            // Скорость ходьбы по пол
 
     Camera(int width, int height, glm::vec3 position);
     void Matrix(Shader& shader, const char* uniform);
@@ -66,6 +79,8 @@ public:
     }
 
     void updateMatrix(float FOVdeg, float nearPlane, float farPlane);
-    void Inputs(GLFWwindow* window);
+    void Inputs(GLFWwindow* window, float deltaTime); // Добавили deltaTime для плавной физики!
+    void TogglePlayMode(PhysicsEngine& physics);      // Переключатель режимов
+    void UpdatePhysics(float deltaTime);              // Обновление координат от капсулы
 };
 #endif

@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <string>
 #include <filesystem>
+#include <iostream>
 std::string getExecutablePath()
 {
 	char buffer[MAX_PATH];
@@ -28,50 +29,32 @@ MaterialGPUData Material::getGPUData() {
 	data.hasMetallic = hasmetallic;
 	data.hasRoughness = hasroughness;
 	data.hasAO = hasao;
+	data.triplanarScale = 0.1f;
+	data.useTriplanar = 0;
+
 	return data;
 }
-void Material::setAlbedo(std::string path) {
-	if (hasalbedo) {
-		glDeleteTextures(1, &albedo.ID);
+// Универсальный внутренний помощник для загрузки
+bool SafeLoad(std::string path, bool& flag, Texture& tex, const char* type, int slot, int format) {
+	if (path.empty() || !fs::exists(path) || fs::is_directory(path)) {
+		return false;
 	}
-	albedo = Texture(path.c_str(), "diffuse", 0,0);
-	hasalbedo = true;
-}
-void Material::setNormal(std::string path) {
-	if (hasnormal) {
-		glDeleteTextures(1, &normal.ID);
+
+	if (flag) {
+		glDeleteTextures(1, &tex.ID);
 	}
-	normal = Texture(path.c_str(), "normal", 1, 1);
-	hasnormal = true;
+
+	tex = Texture(path.c_str(), type, slot, format);
+	flag = true;
+	return true;
 }
-void Material::setHeight(std::string path) {
-	if (hasheight) {
-		glDeleteTextures(1, &height.ID);
-	}
-	height = Texture(path.c_str(), "height", 2, 2);
-	hasheight = true;
-}
-void Material::setMetallic(std::string path) {
-	if (hasmetallic) {
-		glDeleteTextures(1, &metallic.ID);
-	}
-	metallic = Texture(path.c_str(), "metallic", 3, 1);
-	hasmetallic = true;
-}
-void Material::setRoughness(std::string path) {
-	if (hasroughness) {
-		glDeleteTextures(1, &roughness.ID);
-	}
-	roughness = Texture(path.c_str(), "roughness", 4, 1);
-	hasroughness = true;
-}
-void Material::setAO(std::string path) {
-	if (hasao) {
-		glDeleteTextures(1, &ao.ID);
-	}
-	ao = Texture(path.c_str(), "ao", 5, 1);
-	hasao = true;
-}
+
+void Material::setAlbedo(std::string path) { SafeLoad(path, hasalbedo, albedo, "diffuse", 0, 0); }
+void Material::setNormal(std::string path) { SafeLoad(path, hasnormal, normal, "normal", 1, 1); }
+void Material::setHeight(std::string path) { SafeLoad(path, hasheight, height, "height", 2, 2); }
+void Material::setMetallic(std::string path) { SafeLoad(path, hasmetallic, metallic, "metallic", 3, 1); }
+void Material::setRoughness(std::string path) { SafeLoad(path, hasroughness, roughness, "roughness", 4, 1); }
+void Material::setAO(std::string path) { SafeLoad(path, hasao, ao, "ao", 5, 1); }
 void Material::Activate(Shader& shader) {
 	glUniform1i(glGetUniformLocation(shader.ID, "materialID"), this->ID);
 }

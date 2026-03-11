@@ -50,6 +50,6 @@ public:
     PostProcessingShader(Window& window);
     void Bind(Window& window);
     void Update(Window& window, float crntTime, Camera& camera, UI& ui, glm::vec3 sunDir, unsigned int uboLights, ShadowShader& shadowshader
-        , unsigned int& voxelTexture, glm::vec3 gridMin, glm::vec3 gridMax);
+        );
 };
 #endif
