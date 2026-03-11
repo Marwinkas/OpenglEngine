@@ -55,6 +55,9 @@
     <Filter Include="Source Files\GameObjects">
       <UniqueIdentifier>{d0b464ee-e889-4f50-b6fa-161c78d49d78}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Resource Files\Shaders\Voxel">
+      <UniqueIdentifier>{925e08b4-cea0-44aa-940c-be17eae10e2f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Main.cpp">
@@ -98,6 +101,9 @@
     </ClCompile>
     <ClCompile Include="PostProcessingShader.cpp">
       <Filter>Source Files\Shaders</Filter>
+    </ClCompile>
+    <ClCompile Include="PhysicsEngine.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -166,6 +172,18 @@
     </ClInclude>
     <ClInclude Include="VBO.h">
       <Filter>Header Files\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="VoxelShader.h">
+      <Filter>Header Files\Shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="GLBuffer.h">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="GLTexture.h">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="PhysicsEngine.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -239,6 +257,36 @@
       <Filter>Resource Files\Shaders\postprocessing</Filter>
     </None>
     <None Include="ssao_blur.frag">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="sharpen.frag">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="taa.frag">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="volumetric_accumulate.comp">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="volumetric_inject.comp">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="rc_raycast.comp">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="rc_collapse.comp">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="voxelize.vert">
+      <Filter>Resource Files\Shaders\Voxel</Filter>
+    </None>
+    <None Include="voxelize.geom">
+      <Filter>Resource Files\Shaders\Voxel</Filter>
+    </None>
+    <None Include="voxelize.frag">
+      <Filter>Resource Files\Shaders\Voxel</Filter>
+    </None>
+    <None Include="voxel_mipmap.comp">
       <Filter>Resource Files\Shaders\postprocessing</Filter>
     </None>
   </ItemGroup>

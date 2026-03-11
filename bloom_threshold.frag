@@ -5,10 +5,8 @@ uniform sampler2D screenTexture;
 uniform float threshold;
 void main() {
     vec3 color = texture(screenTexture, texCoords).rgb;
-    // Вычисляем реальную яркость пикселя
-    float brightness = dot(color, vec3(0.2126, 0.7152, 0.0722));
+        float brightness = dot(color, vec3(0.2126, 0.7152, 0.0722));
     if(brightness > threshold)
         FragColor = vec4(color, 1.0);
     else
-        FragColor = vec4(0.0, 0.0, 0.0, 1.0); // Черный цвет (не светится)
-}
+        FragColor = vec4(0.0, 0.0, 0.0, 1.0); }

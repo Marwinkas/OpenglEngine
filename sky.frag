@@ -11,14 +11,12 @@ vec3 sunColor = vec3(1.0, 0.9, 0.8);
 vec3 nightColorTop = vec3(0.01, 0.02, 0.05);
 vec3 nightColorBottom = vec3(0.0, 0.0, 0.02);
 vec3 moonColor = vec3(0.9, 0.95, 1.0);
-// Генератор случайных чисел для звёзд
 float rand(vec3 co) {
     return fract(sin(dot(co, vec3(12.9898, 78.233, 54.53))) * 43758.5453);
 }
 void main() {
     vec3 viewDir = normalize(TexCoords);
-    vec3 L = normalize(-sunDir); // Вектор НА солнце
-    float sunHeight = L.y; 
+    vec3 L = normalize(-sunDir);     float sunHeight = L.y; 
     float dayIntensity = smoothstep(-0.35, 0.1, sunHeight);
     float sunsetFactor = smoothstep(0.18, 0.0, sunHeight);
     float nightFade = smoothstep(-0.4, -0.1, sunHeight);
@@ -28,28 +26,19 @@ void main() {
     float height = max(viewDir.y, 0.0);
     vec3 currentHorizon = mix(currentBottom, sunsetColor, sunsetIntensity);
     vec3 skyGradient = mix(currentHorizon, currentTop, height);
-    // --- СОЛНЦЕ ---
-    float sunDot = dot(viewDir, L);
+        float sunDot = dot(viewDir, L);
     float sunGlow = max(sunDot, 0.0);
     vec3 corona = sunColor * pow(sunGlow, 32.0) * 0.5 * dayIntensity;
     float disk = smoothstep(0.998, 0.999, sunGlow);
     vec3 sunDisk = sunColor * disk * 50.0 * dayIntensity;
-    // --- ЛУНА (Теперь противоположна солнцу!) ---
-    // Направление на луну — строго противоположно солнцу!
-    vec3 moonDir = normalize(-L); 
-    // Считаем скалярное произведение для луны
-    float moonDot = dot(viewDir, moonDir);
-    // Рисуем диск поменьше (граница smoothstep 0.9994/0.9996)
-    float moonDiskIntensity = smoothstep(0.9994, 0.9996, moonDot);
-    // Луна загорается, когда солнце садится (или сумерках).
-    // Factor `(1.0 - dayIntensity)` плавно гасит её днем.
-    vec3 moonFinal = moonColor * moonDiskIntensity * (1.0 - dayIntensity);
-    // Звёзды (тоже плавно загораются)
-    float starVal = rand(viewDir * 200.0); 
+            vec3 moonDir = normalize(-L); 
+        float moonDot = dot(viewDir, moonDir);
+        float moonDiskIntensity = smoothstep(0.9994, 0.9996, moonDot);
+            vec3 moonFinal = moonColor * moonDiskIntensity * (1.0 - dayIntensity);
+        float starVal = rand(viewDir * 200.0); 
     float starIntensity = step(0.998, starVal); 
     vec3 stars = vec3(starIntensity) * (1.0 * (1.0 - dayIntensity));
-    // Итог: Складываем всё. Система заката автоматически управляет обоими светилами.
-    FragColor = vec4(skyGradient + corona + sunDisk + moonFinal + stars, 1.0);
+        FragColor = vec4(skyGradient + corona + sunDisk + moonFinal + stars, 1.0);
     NormalColor = vec3(0.0);
     PositionColor = vec3(0.0);
 }

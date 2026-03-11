@@ -8,6 +8,7 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "ImGuizmo.h"
+#include "GLBuffer.h"
 static int meshid;
 struct LODLevel {
 	unsigned int count;
@@ -16,15 +17,20 @@ struct LODLevel {
 class Mesh
 {
 public:
-	int ID = 0;
-	std::vector <Vertex> vertices;
-	std::vector <GLuint> indices;
-	std::vector<LODLevel> lods;
-	void* mappedInstanceVBO = nullptr;
-	VAO VAO;
-	GLuint VBOS;
-	Mesh(std::vector <Vertex>& vertices, std::vector <GLuint>& indices);
-	Mesh(){}
-	float boundingRadius = 10.0f; 
+    int ID = 0;
+    std::vector <Vertex> vertices;
+    std::vector <GLuint> indices;
+    std::vector<LODLevel> lods;
+    void* mappedInstanceVBO = nullptr;
+
+    VAO VAO;
+    // ДОБАВЛЯЕМ СЮДА, ЧТОБЫ ОНИ НЕ УДАЛЯЛИСЬ:
+    VBO VBO_obj;
+    EBO EBO_obj;
+    GLBuffer VBOS;
+
+    Mesh(std::vector <Vertex>& vertices, std::vector <GLuint>& indices);
+    Mesh() {}
+    float boundingRadius = 10.0f;
 };
 #endif

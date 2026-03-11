@@ -1,507 +1,555 @@
 ﻿#include "Render.h"
-#include "UI.h" // <--- ПОДКЛЮЧАЕМ ТОЛЬКО В .CPP ФАЙЛЕ!
+#include "UI.h" 
 #include "CullingShader.h"
-static GLuint materialSSBO = 1;
-
-Render::Render() {
-    glGenBuffers(1, &materialSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, materialSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, 100 * sizeof(MaterialGPUData), nullptr, GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, materialSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-    // 1. Создаем сетку (16x9x24 кластера)
-    glGenBuffers(1, &clusterSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, clusterSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, 16 * 9 * 24 * sizeof(ClusterAABB), nullptr, GL_STATIC_COPY);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, clusterSSBO);
-    // 2. Создаем картотеку (смещение и количество)
-    glGenBuffers(1, &lightGridSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, lightGridSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, 16 * 9 * 24 * sizeof(LightGrid), nullptr, GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, lightGridSSBO);
-    // 3. Создаем глобальный список индексов (максимум по 100 ламп на каждый кластер)
-    glGenBuffers(1, &globalLightIndexListSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, globalLightIndexListSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, 16 * 9 * 24 * 100 * sizeof(unsigned int), nullptr, GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, globalLightIndexListSSBO);
-    // 4. Создаем атомный счетчик (всего 4 байта для одного числа)
-    glGenBuffers(1, &atomicCounterSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, atomicCounterSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(GLuint), nullptr, GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, atomicCounterSSBO);
-};
-void Render::UpdateClusterGrid(Camera& camera, Window& window, CullingShader& cullingshader) {
-    cullingshader.clusterGridShader.Activate();
-    // 1. Передаем параметры камеры
-    // Используй те же значения, что и в основном рендере!
-    float nearPlane = 0.1f;
-    float farPlane = 1000.0f;
-    glUniform1f(glGetUniformLocation(cullingshader.clusterGridShader.ID, "zNear"), nearPlane);
-    glUniform1f(glGetUniformLocation(cullingshader.clusterGridShader.ID, "zFar"), farPlane);
-    // 2. Передаем размеры нашей сетки
-    glUniform1ui(glGetUniformLocation(cullingshader.clusterGridShader.ID, "gridDimX"), 16);
-    glUniform1ui(glGetUniformLocation(cullingshader.clusterGridShader.ID, "gridDimY"), 9);
-    glUniform1ui(glGetUniformLocation(cullingshader.clusterGridShader.ID, "gridDimZ"), 24);
-    // 3. Передаем матрицу проекции
-    glm::mat4 projection = camera.GetProjectionMatrix(45.0f, nearPlane, farPlane);
-    glUniformMatrix4fv(glGetUniformLocation(cullingshader.clusterGridShader.ID, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-    // 4. Запускаем расчет (по одному потоку на каждый кубик)
-    // Мы передаем 16, 9, 24 как группы, потому что в шейдере прописали local_size = 1
-    glDispatchCompute(16, 9, 24);
-    // 5. Ждем завершения, чтобы сетка точно записалась в SSBO
-    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-    std::cout << "Сетка кластеров успешно построена на GPU!" << std::endl;
+void UpdateMatrices(std::vector<GameObject>& objects, int index, glm::mat4 parentMatrix) {
+	GameObject& obj = objects[index];
+	glm::mat4 localMatrix = glm::mat4(1.0f);
+	ImGuizmo::RecomposeMatrixFromComponents(
+		glm::value_ptr(obj.transform.position),
+		glm::value_ptr(obj.transform.rotation),
+		glm::value_ptr(obj.transform.scale),
+		glm::value_ptr(localMatrix)
+	);
+	obj.transform.matrix = parentMatrix * localMatrix;
+	for (int childIdx : obj.children) {
+		UpdateMatrices(objects, childIdx, obj.transform.matrix);
+	}
 }
-void Render::Draw(std::vector<GameObject>& Objects, LitShader& litshader, ShadowShader& shadowshader, PostProcessingShader& postprocessingshader, Window& window, Camera& camera, double crntTime,
-    std::vector<glm::mat4>& boneTransforms, UI& ui, unsigned int uboLights, CullingShader& cullingshader) {
-    glEnable(GL_CULL_FACE);
-    // 1. Пересчитываем локальные матрицы ВСЕХ объектов
-    for (auto& obj : Objects) {
-        if (obj.transform.updatematrix) {
-            ImGuizmo::RecomposeMatrixFromComponents(
-                glm::value_ptr(obj.transform.position),
-                glm::value_ptr(obj.transform.rotation),
-                glm::value_ptr(obj.transform.scale),
-                glm::value_ptr(obj.transform.matrix)
-            );
-            obj.transform.updatematrix = false;
-        }
-    }
-    // --- ПОДГОТОВКА КЛАСТЕРНОГО СВЕТА ---
-// 1. Обнуляем счетчик (очень важно! Без этого список ламп будет расти бесконечно до краша)
-    GLuint zero = 0;
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, atomicCounterSSBO);
-    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(GLuint), &zero);
-    // 2. Считаем, сколько у нас всего ламп (нужно собрать их из всех GameObject)
-    std::vector<GameObject*> lightsOnly;
-    for (auto& obj : Objects) {
-        if (obj.light.enable) lightsOnly.push_back(&obj);
-    }
-    // 3. Запускаем Куллинг Света
-    cullingshader.lightCullingShader.Activate();
-    // Передаем матрицу вида (View), чтобы лампы считались относительно камеры
-    glUniformMatrix4fv(glGetUniformLocation(cullingshader.lightCullingShader.ID, "viewMatrix"), 1, GL_FALSE, glm::value_ptr(camera.GetLookAtMatrix()));
-    // Передаем общее количество ламп на сцене
-    glUniform1ui(glGetUniformLocation(cullingshader.lightCullingShader.ID, "totalLights"), (GLuint)lightsOnly.size());
-    // Запускаем расчет (16x9 мы прописали внутри шейдера, поэтому тут только 24 слоя вглубь)
-    glDispatchCompute(1, 1, 24);
-    // Ждем, пока GPU закончит раскидывать лампы по кубикам
-    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-    // --- ДАЛЬШЕ ИДЕТ ТВОЯ ОБЫЧНАЯ ОТРИСОВКА ---
-    // 
-    // =======================================================
-    // Корзинка для теней (группируем только по Мешу)
-    std::map<Mesh*, std::vector<GameObject*>> shadowBatches;
-    // ИЗМЕНЕНИЕ: Корзинка для цвета теперь хранит УКАЗАТЕЛИ НА ОБЪЕКТЫ, 
-    // чтобы мы могли взять их радиус и позицию для Culling Shader!
-    std::map<std::pair<Mesh*, Material*>, std::vector<GameObject*>> mainBatches;
-    // Пробегаемся по всем объектам и раскладываем по корзинкам
-    for (auto& obj : Objects) {
-        for (auto& subMesh : obj.renderer.subMeshes) {
-            if (obj.castShadow && obj.isVisible) shadowBatches[subMesh.mesh].push_back(&obj);
-            if (obj.isVisible) mainBatches[{subMesh.mesh, subMesh.material}].push_back(&obj);
-        }
-    }
-    // =======================================================
-    // --- 2. ОТРИСОВКА ТЕНЕЙ ------
-    glDisable(GL_CULL_FACE);
-    shadowshader.atlasShader.Activate();
-    glBindFramebuffer(GL_FRAMEBUFFER, shadowshader.atlasFBO);
-    // УДАЛЯЕМ ГЛОБАЛЬНЫЙ CLEAR! Теперь мы не стираем весь атлас разом.
-    // glClear(GL_DEPTH_BUFFER_BIT); 
-    // Включаем тест ножниц: OpenGL сможет очищать и рисовать только в заданной зоне
-    glEnable(GL_SCISSOR_TEST);
-    int currentSlot = 0;
-    int gridCount = shadowshader.atlasResolution / shadowshader.tileSize;
-    for (auto& obj : Objects) {
-        if (obj.light.enable && obj.light.castShadows) {
-            // === МАГИЯ СТАТИЧНОГО СВЕТА ===
-            if (obj.light.mobility == LightMobility::Static && obj.light.hasBakedShadows) {
-                // Свет уже нарисовал тени в прошлых кадрах. 
-                // Просто резервируем за ним его слоты в Атласе и идем дальше!
-                if (obj.light.type == LightType::Point) currentSlot += 6;
-                else currentSlot += 1;
-                continue;
-            }
-            // --- СОЛНЦЕ И ФОНАРИК (1 квадратик) ---
-            if (obj.light.type == LightType::Directional || obj.light.type == LightType::Spot) {
-                if (currentSlot >= gridCount * gridCount) break;
-                int gridX = currentSlot % gridCount;
-                int gridY = currentSlot / gridCount;
-                int tileSize = shadowshader.tileSize;
-                glViewport(gridX * tileSize, gridY * tileSize, tileSize, tileSize);
-                // НОВОЕ: Накладываем ножницы на этот квадратик и стираем только его!
-                glScissor(gridX * tileSize, gridY * tileSize, tileSize, tileSize);
-                glClear(GL_DEPTH_BUFFER_BIT);
-                glm::mat4 rotMat(1.0f);
-                rotMat = glm::rotate(rotMat, glm::radians(obj.transform.rotation.z), glm::vec3(0, 0, 1));
-                rotMat = glm::rotate(rotMat, glm::radians(obj.transform.rotation.y), glm::vec3(0, 1, 0));
-                rotMat = glm::rotate(rotMat, glm::radians(obj.transform.rotation.x), glm::vec3(1, 0, 0));
-                glm::vec3 direction = glm::normalize(glm::vec3(rotMat * glm::vec4(0.0f, -1.0f, 0.0f, 0.0f)));
-                glm::mat4 lightProj, lightView;
-                if (obj.light.type == LightType::Directional) {
-                    float size = 35.0f;
-                    lightProj = glm::ortho(-size, size, -size, size, 0.1f, 150.0f);
-                    glm::vec3 sunPos = camera.Position - direction * 50.0f;
-                    lightView = glm::lookAt(sunPos, camera.Position, glm::vec3(0.0f, 1.0f, 0.0f));
-                }
-                else {
-                    lightProj = glm::perspective(glm::radians(obj.light.outerCone * 2.0f), 1.0f, 0.1f, 100.0f);
-                    lightView = glm::lookAt(obj.transform.position, obj.transform.position + direction, glm::vec3(0.0f, 1.0f, 0.0f));
-                }
-                obj.light.lightSpaceMatrix = lightProj * lightView;
-                obj.light.shadowSlot = currentSlot;
-                glUniformMatrix4fv(glGetUniformLocation(shadowshader.atlasShader.ID, "lightProjection"), 1, GL_FALSE, glm::value_ptr(obj.light.lightSpaceMatrix));
-                // GPU FRUSTUM CULLING ДЛЯ ТЕНЕЙ
-                for (auto& batch : shadowBatches) {
-                    Mesh* mesh = batch.first;
-                    auto& batchObjects = batch.second;
-                    // --- ОТСЕВ СТАТИЧНЫХ ОБЪЕКТОВ ---
-                    // Если свет статичный, рисуем ТОЛЬКО статичные объекты.
-                    // (Мы не хотим запекать динамического персонажа в статический свет насовсем)
-                    std::vector<GameObject*> filteredObjects;
-                    for (auto* o : batchObjects) {
-                        if (obj.light.mobility == LightMobility::Static && !o->isStatic) continue;
-                        filteredObjects.push_back(o);
-                    }
-                    if (filteredObjects.empty()) continue;
-                    std::vector<glm::mat4> matrices;
-                    std::vector<BoundingSphere> spheres;
-                    std::vector<DrawCommand> commands;
-                    for (int i = 0; i < filteredObjects.size(); ++i) {
-                        GameObject* o = filteredObjects[i];
-                        matrices.push_back(o->transform.matrix);
-                        float maxScale = std::max({ o->transform.scale.x, o->transform.scale.y, o->transform.scale.z });
-                        spheres.push_back({ glm::vec4(o->transform.position, mesh->boundingRadius * maxScale) });
-                        DrawCommand cmd;
-                        cmd.count = mesh->indices.size();
-                        cmd.instanceCount = 0;
-                        cmd.firstIndex = 0;
-                        cmd.baseVertex = 0;
-                        cmd.baseInstance = i;
-                        commands.push_back(cmd);
-                    }
-                    glBindBuffer(GL_ARRAY_BUFFER, mesh->VBOS);
-                    glBufferData(GL_ARRAY_BUFFER, matrices.size() * sizeof(glm::mat4), matrices.data(), GL_DYNAMIC_DRAW);
-                    glBindBuffer(GL_SHADER_STORAGE_BUFFER, cullingshader.ssboObjects);
-                    glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(BoundingSphere), spheres.data(), GL_DYNAMIC_DRAW);
-                    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, cullingshader.ssboObjects); // <--- ДОБАВИТЬ!
-                    glBindBuffer(GL_SHADER_STORAGE_BUFFER, cullingshader.ssboCommands);
-                    glBufferData(GL_SHADER_STORAGE_BUFFER, commands.size() * sizeof(DrawCommand), commands.data(), GL_DYNAMIC_DRAW);
-                    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, cullingshader.ssboCommands); // <--- ДОБАВИТЬ!
-                    cullingshader.shader.Activate();
-                    glUniform1i(glGetUniformLocation(cullingshader.shader.ID, "isShadowPass"), 1);
-                    // Передаем камеру и дистанции для расчета LOD в тенях
-                    glUniform3fv(glGetUniformLocation(cullingshader.shader.ID, "camPos"), 1, glm::value_ptr(camera.Position));
-                    float lodDist[2] = { 50.0f, 100.0f };
-                    glUniform1fv(glGetUniformLocation(cullingshader.shader.ID, "lodDistances"), 2, lodDist);
+Render::Render() {
+	materialBuffer = GLBuffer(GL_SHADER_STORAGE_BUFFER, 100 * sizeof(MaterialGPUData), nullptr, GL_DYNAMIC_DRAW, 2);
+	clusterBuffer = GLBuffer(GL_SHADER_STORAGE_BUFFER, 16 * 9 * 24 * sizeof(ClusterAABB), nullptr, GL_STATIC_COPY, 3);
+	lightGridBuffer = GLBuffer(GL_SHADER_STORAGE_BUFFER, 16 * 9 * 24 * sizeof(LightGrid), nullptr, GL_DYNAMIC_DRAW, 4);
+	globalLightIndexBuffer = GLBuffer(GL_SHADER_STORAGE_BUFFER, 16 * 9 * 24 * 100 * sizeof(unsigned int), nullptr, GL_DYNAMIC_DRAW, 5);
+	atomicCounterBuffer = GLBuffer(GL_SHADER_STORAGE_BUFFER, sizeof(GLuint), nullptr, GL_DYNAMIC_DRAW, 6);
 
-                    // Передаем размеры текущего меша! Без этого Compute Shader не знает, сколько рисовать.
-                    for (int i = 0; i < 3; i++) {
-                        unsigned int count = (i < mesh->lods.size()) ? mesh->lods[i].count : mesh->lods[0].count;
-                        unsigned int offset = (i < mesh->lods.size()) ? mesh->lods[i].firstIndex : mesh->lods[0].firstIndex;
+	uboLights = GLBuffer(GL_UNIFORM_BUFFER, sizeof(LightUBOBlock), NULL, GL_DYNAMIC_DRAW, 0);
 
-                        glUniform1ui(glGetUniformLocation(cullingshader.shader.ID, ("meshLODs[" + std::to_string(i) + "].count").c_str()), count);
-                        glUniform1ui(glGetUniformLocation(cullingshader.shader.ID, ("meshLODs[" + std::to_string(i) + "].firstIndex").c_str()), offset);
-                    }
-                    auto planes = cullingshader.ExtractFrustumPlanes(obj.light.lightSpaceMatrix);
-                    for (int i = 0; i < 6; i++) {
-                        std::string name = "frustumPlanes[" + std::to_string(i) + "]";
-                        glUniform4f(glGetUniformLocation(cullingshader.shader.ID, name.c_str()), planes[i].normal.x, planes[i].normal.y, planes[i].normal.z, planes[i].distance);
-                    }
-                    glUniform1ui(glGetUniformLocation(cullingshader.shader.ID, "objectCount"), filteredObjects.size());
-                    GLuint workGroups = (filteredObjects.size() + 255) / 256;
-                    glDispatchCompute(workGroups, 1, 1);
-                    glMemoryBarrier(GL_COMMAND_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
-                    shadowshader.atlasShader.Activate();
-                    glUniformMatrix4fv(glGetUniformLocation(shadowshader.atlasShader.ID, "lightProjection"), 1, GL_FALSE, glm::value_ptr(obj.light.lightSpaceMatrix));
-                    mesh->VAO.Bind();
-                    glBindBuffer(GL_DRAW_INDIRECT_BUFFER, cullingshader.ssboCommands);
-                    glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, (void*)0, filteredObjects.size(), sizeof(DrawCommand));
-                    
-                }
-                // Запоминаем, что статика отрисована
-                if (obj.light.mobility == LightMobility::Static) obj.light.hasBakedShadows = true;
-                currentSlot++;
-            }
-            // --- ЛАМПОЧКА POINT (6 квадратиков!) ---
-            else if (obj.light.type == LightType::Point) {
-                if (currentSlot + 5 >= gridCount * gridCount) break;
-                obj.light.shadowSlot = currentSlot;
-                glm::vec3 pos = obj.transform.position;
-                glm::mat4 shadowProj = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, obj.light.radius);
-                glm::mat4 shadowTransforms[6] = {
-                    shadowProj * glm::lookAt(pos, pos + glm::vec3(1, 0, 0), glm::vec3(0, -1, 0)),
-                    shadowProj * glm::lookAt(pos, pos + glm::vec3(-1, 0, 0), glm::vec3(0, -1, 0)),
-                    shadowProj * glm::lookAt(pos, pos + glm::vec3(0, 1, 0), glm::vec3(0, 0, 1)),
-                    shadowProj * glm::lookAt(pos, pos + glm::vec3(0, -1, 0), glm::vec3(0, 0, -1)),
-                    shadowProj * glm::lookAt(pos, pos + glm::vec3(0, 0, 1), glm::vec3(0, -1, 0)),
-                    shadowProj * glm::lookAt(pos, pos + glm::vec3(0, 0, -1), glm::vec3(0, -1, 0))
-                };
-                int tileSize = shadowshader.tileSize;
-                for (int face = 0; face < 6; ++face) {
-                    int gridX = (currentSlot + face) % gridCount;
-                    int gridY = (currentSlot + face) / gridCount;
-                    glViewport(gridX * tileSize, gridY * tileSize, tileSize, tileSize);
-                    // НОВОЕ: Очищаем только грань куба
-                    glScissor(gridX * tileSize, gridY * tileSize, tileSize, tileSize);
-                    glClear(GL_DEPTH_BUFFER_BIT);
-                    for (auto& batch : shadowBatches) {
-                        Mesh* mesh = batch.first;
-                        auto& batchObjects = batch.second;
-                        // Фильтр статики
-                        std::vector<GameObject*> filteredObjects;
-                        for (auto* o : batchObjects) {
-                            if (obj.light.mobility == LightMobility::Static && !o->isStatic) continue;
-                            filteredObjects.push_back(o);
-                        }
-                        if (filteredObjects.empty()) continue;
-                        std::vector<glm::mat4> matrices;
-                        std::vector<BoundingSphere> spheres;
-                        std::vector<DrawCommand> commands;
-                        for (int i = 0; i < filteredObjects.size(); ++i) {
-                            GameObject* o = filteredObjects[i];
-                            matrices.push_back(o->transform.matrix);
-                            float maxScale = std::max({ o->transform.scale.x, o->transform.scale.y, o->transform.scale.z });
-                            spheres.push_back({ glm::vec4(o->transform.position, mesh->boundingRadius * maxScale) });
-                            DrawCommand cmd = {};
-                            cmd.count = mesh->indices.size();
-                            cmd.instanceCount = 0;
-                            cmd.firstIndex = 0;
-                            cmd.baseVertex = 0;
-                            cmd.baseInstance = i;
-                            commands.push_back(cmd);
-                        }
-                        glBindBuffer(GL_ARRAY_BUFFER, mesh->VBOS);
-                        glBufferData(GL_ARRAY_BUFFER, matrices.size() * sizeof(glm::mat4), matrices.data(), GL_DYNAMIC_DRAW);
-                        glBindBuffer(GL_SHADER_STORAGE_BUFFER, cullingshader.ssboObjects);
-                        glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(BoundingSphere), spheres.data(), GL_DYNAMIC_DRAW);
-                        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, cullingshader.ssboObjects); // <--- ВАЖНО
+	voxelTex.Create3D(voxelGridSize, voxelGridSize, voxelGridSize, GL_RGBA8, true);
+	voxelTex.SetFilter(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+	voxelTex.SetWrap(GL_CLAMP_TO_BORDER);
+	voxelTex.SetBorderColor(0.0f, 0.0f, 0.0f, 0.0f);
+	voxelShader;
+	voxelMipmapShader = Shader("voxel_mipmap.comp");
+};
+void Render::Draw(std::vector<GameObject>& Objects, LitShader& litshader, ShadowShader& shadowshader, PostProcessingShader& postprocessingshader, Window& window, Camera& camera, double crntTime, UI& ui, CullingShader& cullingshader) {
+	glEnable(GL_CULL_FACE);
 
-                        glBindBuffer(GL_SHADER_STORAGE_BUFFER, cullingshader.ssboCommands);
-                        glBufferData(GL_SHADER_STORAGE_BUFFER, commands.size() * sizeof(DrawCommand), commands.data(), GL_DYNAMIC_DRAW);
-                        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, cullingshader.ssboCommands); // <--- ВАЖНО
+	UpdateTransforms(Objects);
 
-                        cullingshader.shader.Activate();
-                        glUniform1i(glGetUniformLocation(cullingshader.shader.ID, "isShadowPass"), 1);
+	GLuint zero = 0;
+	atomicCounterBuffer.UpdateData(0, sizeof(GLuint), &zero);
+	sunDir = SetupLightsAndUBO(Objects, shadowshader);
 
-                        // 3. ПЕРЕДАЕМ РАЗМЕРЫ ТЕКУЩЕГО МЕША В ШЕЙДЕР ТЕНЕЙ
-                        // Берем LOD 0 (оригинал), чтобы тени не дырявились из-за упрощения
-                        for (int i = 0; i < 3; i++) {
-                            unsigned int count = mesh->lods[0].count;
-                            unsigned int offset = mesh->lods[0].firstIndex;
-
-                            glUniform1ui(glGetUniformLocation(cullingshader.shader.ID, ("meshLODs[" + std::to_string(i) + "].count").c_str()), count);
-                            glUniform1ui(glGetUniformLocation(cullingshader.shader.ID, ("meshLODs[" + std::to_string(i) + "].firstIndex").c_str()), offset);
-                        }
-
-                        // Передаем плоскости отсечения и запускаем куллинг...
-                        auto planes = cullingshader.ExtractFrustumPlanes(shadowTransforms[face]);
-                        for (int i = 0; i < 6; i++) {
-                            std::string name = "frustumPlanes[" + std::to_string(i) + "]";
-                            glUniform4f(glGetUniformLocation(cullingshader.shader.ID, name.c_str()), planes[i].normal.x, planes[i].normal.y, planes[i].normal.z, planes[i].distance);
-                        }
-                        glUniform1ui(glGetUniformLocation(cullingshader.shader.ID, "objectCount"), filteredObjects.size());
-                        glDispatchCompute((filteredObjects.size() + 255) / 256, 1, 1);
-                        glMemoryBarrier(GL_COMMAND_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
-                        shadowshader.atlasShader.Activate();
-                        glUniformMatrix4fv(glGetUniformLocation(shadowshader.atlasShader.ID, "lightProjection"), 1, GL_FALSE, glm::value_ptr(shadowTransforms[face]));
-                        mesh->VAO.Bind();
-                        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, cullingshader.ssboCommands);
-                        glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, (void*)0, filteredObjects.size(), sizeof(DrawCommand));
-                        
-                    }
-                }
-                // Запоминаем статику
-                if (obj.light.mobility == LightMobility::Static) obj.light.hasBakedShadows = true;
-                currentSlot += 6;
-            }
-        }
-    }
-    // ВАЖНО: Обязательно выключаем ножницы, чтобы основная отрисовка экрана не обрезалась!
-    glDisable(GL_SCISSOR_TEST);
-    // Возвращаем вьюпорт для основной отрисовки экрана
-    glViewport(0, 0, window.width, window.height);
-    glCullFace(GL_BACK);
-    glm::vec3 sunDir = glm::vec3(0.0f, -1.0f, 0.0f);
-    for (auto& obj : Objects) {
-        if (obj.light.type == LightType::Directional) {
-            glm::vec3 rotRadians = glm::radians(obj.transform.rotation);
-            glm::quat qRot = glm::quat(rotRadians);
-            sunDir = glm::normalize(qRot * glm::vec3(0.0f, -1.0f, 0.0f));
-            break;
-        }
-    }
-    // --- 3. ОСНОВНАЯ ОТРИСОВКА (ЦВЕТ И СВЕТ) ---
-    postprocessingshader.Bind(window);
-    std::vector<MaterialGPUData> materialDataArray;
-    std::map<Material*, int> materialToIndex;
-    for (auto& batch : mainBatches) {
-        Material* mat = batch.first.second;
-        if (materialToIndex.find(mat) == materialToIndex.end()) {
-            materialToIndex[mat] = materialDataArray.size();
-            materialDataArray.push_back(mat->getGPUData());
-        }
-    }
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, materialSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, materialDataArray.size() * sizeof(MaterialGPUData), materialDataArray.data(), GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, materialSSBO); // Биндим на слот 2
-    // Загружаем Uniforms для PBR и Света (Один раз на весь кадр)
-    litshader.shader.Activate();
-    unsigned int lightIndex = glGetUniformBlockIndex(litshader.shader.ID, "LightBlock");
-    glUniformBlockBinding(litshader.shader.ID, lightIndex, 0);
-    // 1. Создаем локальную копию нашего чемодана
-    LightUBOBlock lightBlock;
-    lightBlock.activeLightsCount = 0;
-    // 2. Упаковываем АБСОЛЮТНО ВСЕ данные ламп в один пакет
-    for (auto& obj : Objects) {
-        if (obj.light.enable && obj.light.type != LightType::None) {
-            int i = lightBlock.activeLightsCount;
-            // Позиция и тип (0=Dir, 1=Point, 2=Spot, 3=Rect, 4=Sky)
-            float lightType = (float)obj.light.type;
-            lightBlock.lights[i].posType = glm::vec4(obj.transform.position, lightType);
-            // Цвет и яркость
-            lightBlock.lights[i].colorInt = glm::vec4(obj.light.color, obj.light.intensity);
-            // Направление (через матрицы вращения, как у тебя было)
-            glm::mat4 rotMat(1.0f);
-            rotMat = glm::rotate(rotMat, glm::radians(obj.transform.rotation.z), glm::vec3(0, 0, 1));
-            rotMat = glm::rotate(rotMat, glm::radians(obj.transform.rotation.y), glm::vec3(0, 1, 0));
-            rotMat = glm::rotate(rotMat, glm::radians(obj.transform.rotation.x), glm::vec3(1, 0, 0));
-            glm::vec3 direction = glm::normalize(glm::vec3(rotMat * glm::vec4(0.0f, -1.0f, 0.0f, 0.0f)));
-            // Направление и радиус
-            lightBlock.lights[i].dirRadius = glm::vec4(direction, obj.light.radius);
-            // --- ПАРАМЕТРЫ ТЕНЕЙ (Упаковываем в один vec4) ---
-            float inner = glm::cos(glm::radians(obj.light.innerCone));
-            float outer = glm::cos(glm::radians(obj.light.outerCone));
-            float castsShadows = obj.light.castShadows ? 1.0f : 0.0f;
-            float shadowSlot = (float)obj.light.shadowSlot;
-            lightBlock.lights[i].shadowParams = glm::vec4(inner, outer, castsShadows, shadowSlot);
-            // Матрица для теневого атласа
-            lightBlock.lights[i].lightSpaceMatrix = obj.light.lightSpaceMatrix;
-            lightBlock.activeLightsCount++;
-            // Защита от переполнения (ровно 100 ламп)
-            if (lightBlock.activeLightsCount >= 100) break;
-        }
-    }
-    // 3. ОТПРАВЛЯЕМ ВЕСЬ ПАКЕТ НА ВИДЕОКАРТУ ОДНИМ БРОСКОМ!
-    glBindBuffer(GL_UNIFORM_BUFFER, uboLights);
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(LightUBOBlock), &lightBlock);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 0, uboLights);
-    // 4. Обычные uniform-переменные (Камера, Атлас, Шум)
-    glUniform3f(glGetUniformLocation(litshader.shader.ID, "camPos"), camera.Position.x, camera.Position.y, camera.Position.z);
-    camera.Matrix(litshader.shader, "camMatrix");
-    glUniform1f(glGetUniformLocation(litshader.shader.ID, "farPlane"), 100.0f);
-    glUniform1f(glGetUniformLocation(litshader.shader.ID, "atlasResolution"), 8192.0f);
-    glUniform1f(glGetUniformLocation(litshader.shader.ID, "tileSize"), 2048.0f);
-    // Привязываем текстуры
-    glActiveTexture(GL_TEXTURE0 + 12);
-    glBindTexture(GL_TEXTURE_2D, shadowshader.shadowAtlas);
-    glUniform1i(glGetUniformLocation(litshader.shader.ID, "shadowAtlas"), 12);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, litshader.noiseTexture);
-    glUniform1i(glGetUniformLocation(litshader.shader.ID, "noiseTexture"), 0);
-    glUniformMatrix4fv(glGetUniformLocation(litshader.shader.ID, "viewMatrix"), 1, GL_FALSE, glm::value_ptr(camera.GetLookAtMatrix()));
-    glUniform1f(glGetUniformLocation(litshader.shader.ID, "zNear"), 0.1f);
-    glUniform1f(glGetUniformLocation(litshader.shader.ID, "zFar"), 100.0f);
-    glUniform2f(glGetUniformLocation(litshader.shader.ID, "screenSize"), (float)window.width, (float)window.height);
-    // Привязываем буферы, чтобы фрагментный шейдер мог их прочитать
+	if (needsVoxelization) {
+		Voxelization(camera.Position, Objects, window);
+		needsVoxelization = false; // Выключаем, чтобы не пересчитывать каждый кадр
+	}
 
 
+	cullingshader.lightCullingShader.Activate();
+	glUniformMatrix4fv(glGetUniformLocation(cullingshader.lightCullingShader.ID, "viewMatrix"), 1, GL_FALSE, glm::value_ptr(camera.GetViewMatrix()));
 
-    // =======================================================
-    // GPU FRUSTUM CULLING + INDIRECT DRAWING
-    // =======================================================
-    for (auto& batch : mainBatches) {
-        Mesh* mesh = batch.first.first;
-        Material* mat = batch.first.second;
-        auto& batchObjects = batch.second; // Это теперь std::vector<GameObject*>
-        // 3.1. Подготавливаем данные для Culling Shader
-        std::vector<glm::mat4> matrices;
-        std::vector<BoundingSphere> spheres;
-        std::vector<DrawCommand> commands;
-        for (int i = 0; i < batchObjects.size(); ++i) {
-            GameObject* obj = batchObjects[i];
-            matrices.push_back(obj->transform.matrix);
-            // Радиус. Если у тебя есть obj.boundingRadius, напиши его вместо 10.0f
-            // Выбираем самую большую ось масштабирования (вдруг объект вытянут)
-            float maxScale = std::max({ obj->transform.scale.x, obj->transform.scale.y, obj->transform.scale.z });
-            // Финальный радиус = родной размер меша * масштаб объекта
-            float finalRadius = mesh->boundingRadius * maxScale;
-            // Грузим в видеокарту!
-            spheres.push_back({ glm::vec4(obj->transform.position, finalRadius) });
-            DrawCommand cmd;
-            cmd.count = mesh->indices.size(); // Сколько вершин рисовать
-            cmd.instanceCount = 0;            // Compute Shader поставит тут 1, если объект видно
-            cmd.firstIndex = 0;
-            cmd.baseVertex = 0;
-            cmd.baseInstance = i;             // ВАЖНО: Это указывает видеокарте, какую матрицу брать из VBO!
-            commands.push_back(cmd);
-        }
-        // 3.2. Грузим матрицы в обычный VBO для отрисовки
-        // Прямое и невероятно быстрое копирование матриц прямо в видеопамять!
-        glBindBuffer(GL_ARRAY_BUFFER, mesh->VBOS); // Используй отдельный буфер для матриц!
-        glBufferData(GL_ARRAY_BUFFER, matrices.size() * sizeof(glm::mat4), matrices.data(), GL_DYNAMIC_DRAW);
-        
-        // 3.3. Грузим Сферы и Команды в SSBO
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, cullingshader.ssboObjects);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(BoundingSphere), spheres.data(), GL_DYNAMIC_DRAW);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, cullingshader.ssboObjects);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, cullingshader.ssboCommands);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, commands.size() * sizeof(DrawCommand), commands.data(), GL_DYNAMIC_DRAW);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, cullingshader.ssboCommands);
-        // 3.4. ЗАПУСКАЕМ COMPUTE SHADER (Ядра RTX 3090 полетели!)
-        cullingshader.shader.Activate();
-        // Говорим шейдеру: это экран, применяем Occlusion Culling
-        glUniform1i(glGetUniformLocation(cullingshader.shader.ID, "isShadowPass"), 0);
-        glUniform3fv(glGetUniformLocation(cullingshader.shader.ID, "camPos"), 1, glm::value_ptr(camera.Position));
-        for (int i = 0; i < 3; i++) {
-            // Если у меша реально есть LOD уровни, берем их, иначе дублируем LOD 0
-            unsigned int count = (i < mesh->lods.size()) ? mesh->lods[i].count : mesh->lods[0].count;
-            unsigned int offset = (i < mesh->lods.size()) ? mesh->lods[i].firstIndex : mesh->lods[0].firstIndex;
-            glUniform1ui(glGetUniformLocation(cullingshader.shader.ID, ("meshLODs[" + std::to_string(i) + "].count").c_str()), count);
-            glUniform1ui(glGetUniformLocation(cullingshader.shader.ID, ("meshLODs[" + std::to_string(i) + "].firstIndex").c_str()), offset);
-        }
-        float lodDist[2] = { 50.0f, 100.0f };
-        glUniform1fv(glGetUniformLocation(cullingshader.shader.ID, "lodDistances"), 2, lodDist);
-        // Передаем плоскости
-        auto planes = cullingshader.ExtractFrustumPlanes(camera.GetViewMatrix());
-        for (int i = 0; i < 6; i++) {
-            std::string name = "frustumPlanes[" + std::to_string(i) + "]";
-            glUniform4f(glGetUniformLocation(cullingshader.shader.ID, name.c_str()), planes[i].normal.x, planes[i].normal.y, planes[i].normal.z, planes[i].distance);
-        }
-        glUniform1ui(glGetUniformLocation(cullingshader.shader.ID, "objectCount"), batchObjects.size());
-        // --- ДАННЫЕ ДЛЯ OCCLUSION CULLING ---
-        // Передаем одну готовую матрицу камеры
-        glUniformMatrix4fv(glGetUniformLocation(cullingshader.shader.ID, "viewProjection"), 1, GL_FALSE, glm::value_ptr(camera.GetViewMatrix()));
-        // Разрешение экрана
-        glUniform2f(glGetUniformLocation(cullingshader.shader.ID, "screenSize"), (float)window.width, (float)window.height);
-        // Текстура Пирамиды Глубины (Hi-Z)
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, postprocessingshader.hiZTexture);
-        glUniform1i(glGetUniformLocation(cullingshader.shader.ID, "hiZTexture"), 0);
-        // ------------------------------------
-        GLuint workGroups = (batchObjects.size() + 255) / 256;
-        glDispatchCompute(workGroups, 1, 1);
-        glMemoryBarrier(GL_COMMAND_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
-        // 3.5. ОТРИСОВКА! (Возвращаем обычный шейдер)
-        litshader.shader.Activate();
-        // Опять передаем чистую View-матрицу
-        glUniformMatrix4fv(glGetUniformLocation(litshader.shader.ID, "view"),
-            1, GL_FALSE, glm::value_ptr(camera.GetLookAtMatrix()));
-        // А твою готовую PV-матрицу (cameraMatrix) продолжаем использовать для координат вершин, как и раньше
-        glUniformMatrix4fv(glGetUniformLocation(litshader.shader.ID, "camMatrix"),
-            1, GL_FALSE, glm::value_ptr(camera.GetViewMatrix()));
-        int matIdx = materialToIndex[mat];
-        glUniform1i(glGetUniformLocation(litshader.shader.ID, "materialID"), matIdx);
-        mesh->VAO.Bind();
-        // МАГИЯ INDIRECT DRAWING: Видеокарта сама прочитает команды и проигнорирует невидимое!
-        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, cullingshader.ssboCommands);
-        glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, (void*)0, batchObjects.size(), sizeof(DrawCommand));
-        
-    }
-    // =======================================================
-    glDisable(GL_CULL_FACE);
-    sky.Draw(camera, sunDir);
-    // 4. ПОСТ-ОБРАБОТКА (И НАШ SSGI)
-    postprocessingshader.Update(window, crntTime, camera, ui, sunDir);
+	int lightCount = 0;
+	for (auto& obj : Objects) { if (obj.light.enable) lightCount++; }
+	glUniform1ui(glGetUniformLocation(cullingshader.lightCullingShader.ID, "totalLights"), lightCount);
+	glDispatchCompute(1, 1, 24);
+	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+	std::map<Mesh*, std::vector<GameObject*>> shadowBatches;
+	std::map<std::pair<Mesh*, Material*>, std::vector<GameObject*>> mainBatches;
+	for (auto& obj : Objects) {
+		for (auto& subMesh : obj.renderer.subMeshes) {
+			if (obj.castShadow && obj.isVisible) shadowBatches[subMesh.mesh].push_back(&obj);
+			if (obj.isVisible) mainBatches[{subMesh.mesh, subMesh.material}].push_back(&obj);
+		}
+	}
+
+
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_FRONT);
+	std::vector<glm::mat4> sunMatrices = RenderCSM(camera, shadowBatches, shadowshader, cullingshader, window);
+	RenderAtlasShadows(camera, Objects, shadowBatches, shadowshader, cullingshader, window);
+
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_BACK);
+	glViewport(0, 0, window.width, window.height);
+	RenderMainPass(camera, window, mainBatches, sunMatrices, litshader,shadowshader, cullingshader, postprocessingshader);
+ 
+	glDisable(GL_CULL_FACE);
+	sky.Draw(camera, sunDir);
+	postprocessingshader.Update(window, crntTime, camera, ui,sunDir, uboLights.ID, shadowshader, voxelTex.ID, gridMin, gridMax);
+}
+void Render::UpdateTransforms(std::vector<GameObject>& Objects) {
+	for (int i = 0; i < Objects.size(); i++) {
+		if (Objects[i].parentID == -1) {
+			UpdateMatrices(Objects, i, glm::mat4(1.0f));
+		}
+	}
+}
+glm::vec3 Render::SetupLightsAndUBO(std::vector<GameObject>& Objects, ShadowShader& shadowshader) {
+	LightUBOBlock lightBlock;
+	lightBlock.activeLightsCount = 0;
+
+	static glm::vec3 lastSunDir = glm::vec3(0.0f); // Храним старое направление
+	glm::vec3 currentSunDir = glm::vec3(0.0f, -1.0f, 0.0f);
+
+	for (auto& obj : Objects) {
+		if (!obj.light.enable || obj.light.type == LightType::None) continue;
+
+		if (obj.light.type == LightType::Directional) {
+			glm::quat qRot = glm::quat(glm::radians(obj.transform.rotation));
+			currentSunDir = glm::normalize(qRot * glm::vec3(0.0f, -1.0f, 0.0f));
+
+			// МАГИЯ: Если солнце повернулось — перерисовываем кэш статики!
+			if (glm::distance(currentSunDir, lastSunDir) > 0.0001f) {
+				shadowshader.staticShadowsDirty = true;
+				lastSunDir = currentSunDir;
+			}
+		}
+		// ... остальной твой код (заполнение lightBlock) ...
+		int i = lightBlock.activeLightsCount;
+		// (копируй сюда заполнение структур lights[i] из своего кода)
+		float lightType = (float)obj.light.type;
+		lightBlock.lights[i].posType = glm::vec4(obj.transform.position, lightType);
+		lightBlock.lights[i].colorInt = glm::vec4(obj.light.color, obj.light.intensity);
+		glm::quat qRot = glm::quat(glm::radians(obj.transform.rotation));
+		glm::vec3 direction = glm::normalize(qRot * glm::vec3(0.0f, -1.0f, 0.0f));
+		lightBlock.lights[i].dirRadius = glm::vec4(direction, obj.light.radius);
+		if (obj.light.type == LightType::Spot) {
+			glm::mat4 lightProj = glm::perspective(glm::radians(obj.light.outerCone * 2.0f), 1.0f, 0.1f, 1000.0f);
+			glm::mat4 lightView = glm::lookAt(obj.transform.position, obj.transform.position + direction, glm::vec3(0.0f, 1.0f, 0.0f));
+			obj.light.lightSpaceMatrix = lightProj * lightView;
+		}
+		float inner = glm::cos(glm::radians(obj.light.innerCone));
+		float outer = glm::cos(glm::radians(obj.light.outerCone));
+		float castsShadows = obj.light.castShadows ? 1.0f : 0.0f;
+		float shadowSlot = (float)obj.light.shadowSlot;
+		lightBlock.lights[i].shadowParams = glm::vec4(inner, outer, castsShadows, shadowSlot);
+		lightBlock.lights[i].lightSpaceMatrix = obj.light.lightSpaceMatrix;
+
+		lightBlock.activeLightsCount++;
+		if (lightBlock.activeLightsCount >= 100) break;
+	}
+
+	uboLights.UpdateData(0, sizeof(LightUBOBlock), &lightBlock);
+	return currentSunDir;
+}
+
+void Render::DispatchGPUCulling(Mesh* mesh, std::vector<GameObject*>& batchObjects, const glm::mat4& viewProj, const glm::vec3& camPos, bool isShadowPass, CullingShader& cullingshader, Window& window, GLuint hiZTex) {
+	if (batchObjects.empty()) return;
+
+	std::vector<glm::mat4> matrices;
+	std::vector<BoundingSphere> spheres;
+	std::vector<DrawCommand> commands;
+
+	for (int i = 0; i < batchObjects.size(); ++i) {
+		GameObject* obj = batchObjects[i];
+		matrices.push_back(obj->transform.matrix);
+		float maxScale = std::max({ obj->transform.scale.x, obj->transform.scale.y, obj->transform.scale.z });
+		spheres.push_back({ glm::vec4(obj->transform.position, mesh->boundingRadius * maxScale) });
+
+		DrawCommand cmd = {};
+		cmd.count = mesh->indices.size();
+		cmd.instanceCount = 0;
+		cmd.firstIndex = 0;
+		cmd.baseVertex = 0;
+		cmd.baseInstance = i;
+		commands.push_back(cmd);
+	}
+
+	mesh->VBOS.SetData(matrices.size() * sizeof(glm::mat4), matrices.data());
+
+	cullingshader.ssboObjects.SetData(spheres.size() * sizeof(BoundingSphere), spheres.data());
+	// ГОВОРИМ COMPUTE ШЕЙДЕРУ, ЧТО СФЕРЫ В СЛОТЕ 0
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, cullingshader.ssboObjects.ID);
+
+	cullingshader.ssboCommands.SetData(commands.size() * sizeof(DrawCommand), commands.data());
+	// ГОВОРИМ COMPUTE ШЕЙДЕРУ, ЧТО КОМАНДЫ В СЛОТЕ 1
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, cullingshader.ssboCommands.ID);
+
+	cullingshader.Activate();
+
+	cullingshader.Set(cullingshader.loc.camPos, camPos);
+	cullingshader.Set(cullingshader.loc.isShadowPass, isShadowPass ? 1 : 0);
+
+	float lodDist[2] = { 50.0f, 1000.0f };
+	cullingshader.Set(cullingshader.loc.lodDistances,2, lodDist);
+
+	for (int i = 0; i < 3; i++) {
+		unsigned int count = (i < mesh->lods.size()) ? mesh->lods[i].count : mesh->lods[0].count;
+		unsigned int offset = (i < mesh->lods.size()) ? mesh->lods[i].firstIndex : mesh->lods[0].firstIndex;
+
+		cullingshader.Set(cullingshader.loc.lodCount[i], count);
+		cullingshader.Set(cullingshader.loc.lodOffset[i], offset);
+	}
+
+	auto planes = cullingshader.ExtractFrustumPlanes(viewProj);
+
+	for (int i = 0; i < 6; i++) {
+		// Используем наш новый быстрый Set с 4-мя флоатами (normal.xyz + distance)
+		cullingshader.Set(
+			cullingshader.loc.frustumPlanes[i],
+			planes[i].normal.x,
+			planes[i].normal.y,
+			planes[i].normal.z,
+			planes[i].distance
+		);
+	}
+	cullingshader.Set(cullingshader.loc.objectCount, (unsigned int)batchObjects.size());
+	cullingshader.Set(cullingshader.loc.viewProjection, viewProj);;
+
+	if (!isShadowPass) {
+		cullingshader.Set(cullingshader.loc.screenSize, (float)window.width, (float)window.height);
+		cullingshader.Set(cullingshader.loc.hiZTexture, hiZTex,0);
+	}
+
+	GLuint workGroups = (batchObjects.size() + 255) / 256;
+	glDispatchCompute(workGroups, 1, 1);
+	glMemoryBarrier(GL_COMMAND_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
+}
+std::vector<glm::mat4> Render::RenderCSM(Camera& camera, std::map<Mesh*, std::vector<GameObject*>>& shadowBatches, ShadowShader& shadowshader, CullingShader& cullingshader, Window& window) {
+	shadowshader.Activate();
+	glEnable(GL_DEPTH_CLAMP);
+	static int frameCounter = 0;
+	frameCounter++;
+
+	static std::vector<glm::mat4> sunMatrices(4, glm::mat4(1.0f));
+	float lastSplit = 0.1f;
+	for (int i = 0; i < 4; i++) {
+		bool shouldUpdate = true;
+		if (i == 1 && frameCounter % 2 != 0) shouldUpdate = false;
+		if (i == 2 && frameCounter % 3 != 0) shouldUpdate = false;
+		if (i == 3 && frameCounter % 4 != 0) shouldUpdate = false;
+		if (shouldUpdate) sunMatrices[i] = CalculateCalculateCSMMatrix(lastSplit, shadowshader.cascadeSplits[i], camera, (float)shadowshader.sunShadowSize);
+		lastSplit = shadowshader.cascadeSplits[i];
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, shadowshader.sunFBO);
+	glViewport(0, 0, shadowshader.sunShadowSize, shadowshader.sunShadowSize);
+
+	for (int i = 0; i < 4; i++) {
+		// Выясняем, обновилась ли матрица для этого каскада в этом кадре
+		bool matrixUpdated = (i == 0) ||
+			(i == 1 && frameCounter % 2 == 0) ||
+			(i == 2 && frameCounter % 3 == 0) ||
+			(i == 3 && frameCounter % 4 == 0);
+
+		if (!matrixUpdated) continue;
+
+		// ЕСЛИ МАТРИЦА ОБНОВИЛАСЬ — статика в кэше для этого каскада СДОХЛА.
+		// Мы обязаны её перерисовать под новую матрицу.
+
+		// 1. Рисуем статику в кэш под НОВУЮ матрицу
+		glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, shadowshader.staticSunShadowArray, 0, i);
+		glClear(GL_DEPTH_BUFFER_BIT);
+
+		for (auto& batch : shadowBatches) {
+			std::vector<GameObject*> statics;
+			for (auto* o : batch.second) if (o->isStatic) statics.push_back(o);
+			if (!statics.empty()) {
+				DispatchGPUCulling(batch.first, statics, sunMatrices[i], camera.Position, true, cullingshader, window, 0);
+				shadowshader.Activate();
+				shadowshader.Set(shadowshader.loc.lightProjection, sunMatrices[i]);
+				batch.first->VAO.Bind();
+				glBindBuffer(GL_DRAW_INDIRECT_BUFFER, cullingshader.ssboCommands.ID);
+				glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, (void*)0, statics.size(), sizeof(DrawCommand));
+			}
+		}
+
+		// 2. Копируем свежую статику в финальную карту
+		glCopyImageSubData(
+			shadowshader.staticSunShadowArray, GL_TEXTURE_2D_ARRAY, 0, 0, 0, i,
+			shadowshader.sunShadowArray, GL_TEXTURE_2D_ARRAY, 0, 0, 0, i,
+			shadowshader.sunShadowSize, shadowshader.sunShadowSize, 1
+		);
+
+		// 3. Дорисовываем динамику (персонажей)
+		glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, shadowshader.sunShadowArray, 0, i);
+		for (auto& batch : shadowBatches) {
+			std::vector<GameObject*> dynamics;
+			for (auto* o : batch.second) if (!o->isStatic) dynamics.push_back(o);
+			if (!dynamics.empty()) {
+				DispatchGPUCulling(batch.first, dynamics, sunMatrices[i], camera.Position, true, cullingshader, window, 0);
+				shadowshader.Activate();
+				shadowshader.Set(shadowshader.loc.lightProjection, sunMatrices[i]);
+				batch.first->VAO.Bind();
+				glBindBuffer(GL_DRAW_INDIRECT_BUFFER, cullingshader.ssboCommands.ID);
+				glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, (void*)0, dynamics.size(), sizeof(DrawCommand));
+			}
+		}
+	}
+	// В конце функции убираем shadowshader.staticShadowsDirty = false; 
+	// так как мы теперь управляем этим точечно.
+
+	// Сбрасываем флаг только после прохода всех каскадов
+	shadowshader.staticShadowsDirty = false;
+
+	glDisable(GL_DEPTH_CLAMP);
+	return sunMatrices;
+}
+void Render::RenderAtlasShadows(Camera& camera, std::vector<GameObject>& Objects, std::map<Mesh*, std::vector<GameObject*>>& shadowBatches, ShadowShader& shadowshader, CullingShader& cullingshader, Window& window) {
+	glBindFramebuffer(GL_FRAMEBUFFER, shadowshader.atlasFBO);
+	glEnable(GL_SCISSOR_TEST);
+	int currentSlot = 0;
+	int gridCount = shadowshader.atlasResolution / shadowshader.tileSize;
+
+	for (auto& obj : Objects) {
+		if (!obj.light.enable || !obj.light.castShadows) continue;
+		if (obj.light.type == LightType::Directional) continue; // Солнце уже нарисовали в CSM!
+
+		if (obj.light.mobility == LightMobility::Static && obj.light.hasBakedShadows) {
+			currentSlot += (obj.light.type == LightType::Point) ? 6 : 1;
+			continue;
+		}
+
+		if (obj.light.type == LightType::Spot) {
+			if (currentSlot >= gridCount * gridCount) break;
+			int gridX = currentSlot % gridCount;
+			int gridY = currentSlot / gridCount;
+			glViewport(gridX * shadowshader.tileSize, gridY * shadowshader.tileSize, shadowshader.tileSize, shadowshader.tileSize);
+			glScissor(gridX * shadowshader.tileSize, gridY * shadowshader.tileSize, shadowshader.tileSize, shadowshader.tileSize);
+			glClear(GL_DEPTH_BUFFER_BIT);
+
+			for (auto& batch : shadowBatches) {
+				Mesh* mesh = batch.first;
+				std::vector<GameObject*> filteredObjects;
+				for (auto* o : batch.second) {
+					if (obj.light.mobility == LightMobility::Static && !o->isStatic) continue;
+					filteredObjects.push_back(o);
+				}
+				if (filteredObjects.empty()) continue;
+
+				DispatchGPUCulling(mesh, filteredObjects, obj.light.lightSpaceMatrix, camera.Position, true, cullingshader, window, 0);
+
+				shadowshader.Activate();
+				shadowshader.Set(shadowshader.loc.lightProjection, obj.light.lightSpaceMatrix);
+				mesh->VAO.Bind();
+				glBindBuffer(GL_DRAW_INDIRECT_BUFFER, cullingshader.ssboCommands.ID);
+				glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, (void*)0, filteredObjects.size(), sizeof(DrawCommand));
+			}
+			if (obj.light.mobility == LightMobility::Static) obj.light.hasBakedShadows = true;
+			currentSlot++;
+		}
+		else if (obj.light.type == LightType::Point) {
+			if (currentSlot + 5 >= gridCount * gridCount) break;
+			obj.light.shadowSlot = currentSlot;
+			glm::vec3 pos = obj.transform.position;
+			glm::mat4 shadowProj = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, obj.light.radius);
+			glm::mat4 shadowTransforms[6] = {
+				shadowProj * glm::lookAt(pos, pos + glm::vec3(1, 0, 0), glm::vec3(0, -1, 0)),
+				shadowProj * glm::lookAt(pos, pos + glm::vec3(-1, 0, 0), glm::vec3(0, -1, 0)),
+				shadowProj * glm::lookAt(pos, pos + glm::vec3(0, 1, 0), glm::vec3(0, 0, 1)),
+				shadowProj * glm::lookAt(pos, pos + glm::vec3(0, -1, 0), glm::vec3(0, 0, -1)),
+				shadowProj * glm::lookAt(pos, pos + glm::vec3(0, 0, 1), glm::vec3(0, -1, 0)),
+				shadowProj * glm::lookAt(pos, pos + glm::vec3(0, 0, -1), glm::vec3(0, -1, 0))
+			};
+
+			for (int face = 0; face < 6; ++face) {
+				int gridX = (currentSlot + face) % gridCount;
+				int gridY = (currentSlot + face) / gridCount;
+				glViewport(gridX * shadowshader.tileSize, gridY * shadowshader.tileSize, shadowshader.tileSize, shadowshader.tileSize);
+				glScissor(gridX * shadowshader.tileSize, gridY * shadowshader.tileSize, shadowshader.tileSize, shadowshader.tileSize);
+				glClear(GL_DEPTH_BUFFER_BIT);
+
+				for (auto& batch : shadowBatches) {
+					Mesh* mesh = batch.first;
+					std::vector<GameObject*> filteredObjects;
+					for (auto* o : batch.second) {
+						if (obj.light.mobility == LightMobility::Static && !o->isStatic) continue;
+						filteredObjects.push_back(o);
+					}
+					if (filteredObjects.empty()) continue;
+
+					DispatchGPUCulling(mesh, filteredObjects, shadowTransforms[face], camera.Position, true, cullingshader, window, 0);
+					shadowshader.Activate();
+					shadowshader.Set(shadowshader.loc.lightProjection, shadowTransforms[face]);
+					mesh->VAO.Bind();
+					glBindBuffer(GL_DRAW_INDIRECT_BUFFER, cullingshader.ssboCommands.ID);
+					glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, (void*)0, filteredObjects.size(), sizeof(DrawCommand));
+				}
+			}
+			if (obj.light.mobility == LightMobility::Static) obj.light.hasBakedShadows = true;
+			currentSlot += 6;
+		}
+	}
+	glDisable(GL_SCISSOR_TEST);
+}
+
+
+
+
+
+
+void Render::RenderMainPass(Camera& camera, Window& window, std::map<std::pair<Mesh*, Material*>, std::vector<GameObject*>>& mainBatches, std::vector<glm::mat4>& sunMatrices, LitShader& litshader, ShadowShader& shadowshader, CullingShader& cullingshader, PostProcessingShader& ppShader) {
+	ppShader.Bind(window);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	// Загружаем материалы
+	std::vector<MaterialGPUData> materialDataArray;
+	std::map<Material*, int> materialToIndex;
+	for (auto& batch : mainBatches) {
+		Material* mat = batch.first.second;
+		if (materialToIndex.find(mat) == materialToIndex.end()) {
+			materialToIndex[mat] = materialDataArray.size();
+			materialDataArray.push_back(mat->getGPUData());
+		}
+	}
+	materialBuffer.SetData(materialDataArray.size() * sizeof(MaterialGPUData), materialDataArray.data());
+
+	litshader.Activate();
+	// Пока используем старые Set, чтобы ничего не сломать. Потом сможешь заменить на свои короткие!
+	litshader.Set(litshader.loc.camPos, camera.Position);
+	litshader.Set(litshader.loc.camMatrix, camera.GetViewProjectionMatrix());
+	litshader.Set(litshader.loc.nearPlane, 0.1f);
+	litshader.Set(litshader.loc.farPlane, 1000.0f);
+	litshader.Set(litshader.loc.atlasResolution, 8192.0f);
+	litshader.Set(litshader.loc.tileSize, 2048.0f);
+	litshader.Set(litshader.loc.shadowAtlas, shadowshader.shadowAtlas, 12);
+	litshader.Set(litshader.loc.sunShadowMap, shadowshader.sunShadowArray, 13, GL_TEXTURE_2D_ARRAY);
+	litshader.Set(litshader.loc.noiseTexture, litshader.blueNoiseTexture, 0);
+	litshader.Set(litshader.loc.viewMatrix, camera.GetViewMatrix());
+	litshader.Set(litshader.loc.screenSize, (float)window.width, (float)window.height);
+	litshader.Set(litshader.loc.sunLightSpaceMatrices, sunMatrices);
+	litshader.Set(litshader.loc.cascadeSplits, shadowshader.cascadeSplits);
+	litshader.Set(litshader.loc.view, camera.GetViewMatrix());
+	
+	for (auto& batch : mainBatches) {
+		Mesh* mesh = batch.first.first;
+		Material* mat = batch.first.second;
+
+		// Экранный куллинг
+		DispatchGPUCulling(mesh, batch.second, camera.GetViewProjectionMatrix(), camera.Position, false, cullingshader, window, ppShader.hiZTexture);
+
+		litshader.Activate();
+		litshader.Set(litshader.loc.camMatrix, camera.GetViewProjectionMatrix());
+		litshader.Set(litshader.loc.view, camera.GetViewMatrix());
+		litshader.Set(litshader.loc.materialID, materialToIndex[mat]);
+
+		mesh->VAO.Bind();
+		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, cullingshader.ssboCommands.ID);
+		glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, (void*)0, batch.second.size(), sizeof(DrawCommand));
+	}
+}
+void Render::UpdateClusterGrid(Camera& camera, Window& window, CullingShader& cullingshader) {
+	cullingshader.clusterGridShader.Activate();
+	cullingshader.clusterGridShader.Set(cullingshader.clusterGridShader.loc.zNear, 0.1f);
+	cullingshader.clusterGridShader.Set(cullingshader.clusterGridShader.loc.zFar, 1000.0f);
+	cullingshader.clusterGridShader.Set(cullingshader.clusterGridShader.loc.gridDimX, 16);
+	cullingshader.clusterGridShader.Set(cullingshader.clusterGridShader.loc.gridDimY, 9);
+	cullingshader.clusterGridShader.Set(cullingshader.clusterGridShader.loc.gridDimZ, 24);
+	cullingshader.clusterGridShader.Set(cullingshader.clusterGridShader.loc.projection, camera.GetProjectionMatrix(45.0f, 0.1f, 1000.0f));
+	glDispatchCompute(16, 9, 24);
+	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+	std::cout << "Сетка кластеров успешно построена на GPU!" << std::endl;
+}
+glm::mat4 Render::CalculateCalculateCSMMatrix(float nearP, float farP, Camera& camera, float shadowSize) {
+	glm::mat4 proj = camera.GetProjectionMatrix(45.0f, nearP, farP, false);
+	glm::mat4 invCam = glm::inverse(proj * camera.GetViewMatrix());
+
+	std::vector<glm::vec4> frustumCorners;
+	for (int x = 0; x < 2; ++x) {
+		for (int y = 0; y < 2; ++y) {
+			for (int z = 0; z < 2; ++z) {
+				glm::vec4 pt = invCam * glm::vec4(2.0f * x - 1.0f, 2.0f * y - 1.0f, 2.0f * z - 1.0f, 1.0f);
+				frustumCorners.push_back(pt / pt.w);
+			}
+		}
+	}
+
+	glm::vec3 center = glm::vec3(0);
+	for (const auto& v : frustumCorners) center += glm::vec3(v);
+	center /= 8.0f;
+
+	glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+	if (std::abs(sunDir.y) > 0.999f) up = glm::vec3(0.0f, 0.0f, 1.0f);
+
+	glm::mat4 lightView = glm::lookAt(center - sunDir * 100.0f, center, up);
+
+	float minX = std::numeric_limits<float>::max(); float maxX = std::numeric_limits<float>::lowest();
+	float minY = std::numeric_limits<float>::max(); float maxY = std::numeric_limits<float>::lowest();
+
+	for (const auto& v : frustumCorners) {
+		glm::vec4 trf = lightView * v;
+		minX = std::min(minX, trf.x); maxX = std::max(maxX, trf.x);
+		minY = std::min(minY, trf.y); maxY = std::max(maxY, trf.y);
+	}
+
+	// --- МАГИЯ СТАБИЛИЗАЦИИ ---
+	// 1. Считаем, сколько мировых единиц (метров) приходится на 1 пиксель текстуры тени
+	float worldUnitsPerTexel = (maxX - minX) / shadowSize;
+
+	// 2. Округляем границы до ближайшего целого "пикселя" в мировых координатах
+	minX = std::floor(minX / worldUnitsPerTexel) * worldUnitsPerTexel;
+	maxX = std::floor(maxX / worldUnitsPerTexel) * worldUnitsPerTexel;
+
+	worldUnitsPerTexel = (maxY - minY) / shadowSize;
+	minY = std::floor(minY / worldUnitsPerTexel) * worldUnitsPerTexel;
+	maxY = std::floor(maxY / worldUnitsPerTexel) * worldUnitsPerTexel;
+	// --------------------------
+
+	return glm::ortho(minX, maxX, minY, maxY, -500.0f, 500.0f) * lightView;
+}
+void Render::Voxelization(glm::vec3 Position, std::vector<GameObject>& Objects, Window& window) {
+	float halfSize = voxelWorldSize / 2.0f;
+	float voxelStep = voxelWorldSize / voxelGridSize;
+	glm::vec3 gridCenter = glm::floor(Position / voxelStep) * voxelStep;
+	gridMin = gridCenter - glm::vec3(halfSize);
+	gridMax = gridCenter + glm::vec3(halfSize);
+
+	voxelShader.Activate();
+	
+	voxelShader.Set(voxelShader.loc.gridSize, voxelGridSize);
+	voxelShader.Set(voxelShader.loc.gridMax, gridMax);
+	voxelShader.Set(voxelShader.loc.gridMin, gridMin);
+
+	// Берем солнце из первого попавшегося
+	glm::vec3 tempSunDir = glm::vec3(0, -1, 0);
+	for (auto& obj : Objects) {
+		if (obj.light.type == LightType::Directional) {
+			glm::quat qRot = glm::quat(glm::radians(obj.transform.rotation));
+			tempSunDir = glm::normalize(qRot * glm::vec3(0.0f, -1.0f, 0.0f));
+			break;
+		}
+	}
+	sunDir = tempSunDir;
+	voxelShader.Set(voxelShader.loc.sunDir, sunDir);
+
+	GLuint clearColor = 0;
+	glClearTexImage(voxelTex.ID, 0, GL_RGBA, GL_UNSIGNED_BYTE, &clearColor);
+	glBindImageTexture(0, voxelTex.ID, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA8);
+	glDisable(GL_CULL_FACE);
+	glDisable(GL_DEPTH_TEST);
+	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+	glViewport(0, 0, voxelGridSize, voxelGridSize);
+
+	for (auto& obj : Objects) {
+		if (!obj.hasMesh || !obj.isVisible) continue;
+		glUniformMatrix4fv(glGetUniformLocation(voxelShader.ID, "model"), 1, GL_FALSE, glm::value_ptr(obj.transform.matrix));
+		for (auto& subMesh : obj.renderer.subMeshes) {
+			voxelShader.Set(voxelShader.loc.albedoMap, subMesh.material->albedo.ID, 0);
+
+			subMesh.mesh->VAO.Bind();
+			glDrawElements(GL_TRIANGLES, subMesh.mesh->indices.size(), GL_UNSIGNED_INT, 0);
+		}
+	}
+
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_CULL_FACE);
+	glViewport(0, 0, window.width, window.height);
+
+	glBindTexture(GL_TEXTURE_3D, voxelTex.ID);
+	voxelMipmapShader.Activate();
+	int currentSize = voxelGridSize;
+	int mipLevels = 1 + (int)std::floor(std::log2(voxelGridSize));
+	for (int i = 0; i < mipLevels - 1; ++i) {
+		int nextSize = currentSize / 2;
+		if (nextSize < 1) nextSize = 1;
+		glBindImageTexture(0, voxelTex.ID, i, GL_TRUE, 0, GL_READ_ONLY, GL_RGBA8);
+		glBindImageTexture(1, voxelTex.ID, i + 1, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA8);
+		GLuint groups = (nextSize + 3) / 4;
+		glDispatchCompute(groups, groups, groups);
+		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+		currentSize = nextSize;
+	}
+	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 }

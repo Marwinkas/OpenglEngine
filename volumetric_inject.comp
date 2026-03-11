@@ -1,0 +1,101 @@
+﻿#version 430 core
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
+layout(rgba16f, binding = 0) writeonly uniform image3D volumeTex;
+uniform mat4 invViewProj;
+uniform float zNear;
+uniform float zFar;
+uniform vec3 camPos;
+uniform float fogDensity;
+uniform float fogBaseHeight;
+uniform float fogHeightFalloff;
+uniform vec3 fogColor;
+uniform sampler2D shadowAtlas;
+uniform float atlasResolution;
+uniform float tileSize;
+struct PointLightData {
+    vec4 posType;           
+    vec4 colorInt;          
+    vec4 dirRadius;         
+    vec4 shadowParams;      
+    mat4 lightSpaceMatrix;  
+};
+layout(std140, binding = 0) uniform LightBlock {
+    int activeLightsCount;
+    PointLightData lights[100];
+};
+float GetAtlasShadow(vec3 worldPos, mat4 lightSpaceMatrix, int shadowSlot) {
+    if (shadowSlot < 0) return 0.0;
+    vec4 clipPos = lightSpaceMatrix * vec4(worldPos, 1.0);
+    vec3 ndcPos = clipPos.xyz / clipPos.w;
+    vec3 projCoords = ndcPos * 0.5 + 0.5;
+    if(projCoords.z > 1.0 || projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0) 
+        return 0.0;
+    float gridCount = atlasResolution / tileSize;
+    float gridX = mod(float(shadowSlot), gridCount);
+    float gridY = floor(float(shadowSlot) / gridCount);
+    float uvScale = tileSize / atlasResolution; 
+    vec2 atlasUV = projCoords.xy * uvScale + vec2(gridX, gridY) * uvScale;
+    float closestDepth = textureLod(shadowAtlas, atlasUV, 0.0).r; 
+    return (projCoords.z - 0.005 > closestDepth) ? 1.0 : 0.0; 
+}
+float PhaseHG(float cosTheta, float g) {
+    float g2 = g * g;
+    return (1.0 - g2) / (4.0 * 3.14159 * pow(1.0 + g2 - 2.0 * g * cosTheta, 1.5));
+}
+void main() {
+    ivec3 voxelCoord = ivec3(gl_GlobalInvocationID.xyz);
+    if(voxelCoord.x >= 160 || voxelCoord.y >= 90 || voxelCoord.z >= 64) return;
+    vec3 uvw = (vec3(voxelCoord) + 0.5) / vec3(160.0, 90.0, 64.0);
+    float viewZ = -zNear * pow(zFar / zNear, uvw.z);
+    float ndcZ = ((zFar + zNear) + (2.0 * zFar * zNear) / viewZ) / (zFar - zNear);
+    vec4 ndcPos = vec4(uvw.x * 2.0 - 1.0, uvw.y * 2.0 - 1.0, ndcZ, 1.0);
+    vec4 worldPosRaw = invViewProj * ndcPos;
+    vec3 worldPos = worldPosRaw.xyz / worldPosRaw.w;
+    vec3 viewDir = normalize(worldPos - camPos);
+    float heightDiff = max(worldPos.y - fogBaseHeight, 0.0);
+    float heightDensity = exp(-heightDiff * fogHeightFalloff);
+    float density = fogDensity * heightDensity;
+                    float dayNightFactor = 0.02;     
+    for (int i = 0; i < activeLightsCount; ++i) {
+        if (int(lights[i].posType.w) == 0) {             vec3 sunL = normalize(-lights[i].dirRadius.xyz);
+                        dayNightFactor = max(0.02, smoothstep(-0.1, 0.2, sunL.y));
+            break;
+        }
+    }
+    vec3 totalScattering = vec3(0.0);
+    for (int i = 0; i < activeLightsCount; ++i) {
+        PointLightData light = lights[i];
+        int type = int(light.posType.w);
+        int shadowSlot = int(light.shadowParams.w);
+        int castShadows = int(light.shadowParams.z);
+        vec3 L; 
+        float attenuation = 1.0; 
+        float shadow = 0.0;
+        if (type == 0) {             L = normalize(-light.dirRadius.xyz);
+                        attenuation = smoothstep(-0.05, 0.1, L.y);
+            if (castShadows == 1 && attenuation > 0.0) shadow = GetAtlasShadow(worldPos, light.lightSpaceMatrix, shadowSlot);
+        } 
+        else if (type == 1) {             L = normalize(light.posType.xyz - worldPos);
+            float dist = length(light.posType.xyz - worldPos);
+            float falloff = clamp(1.0 - (dist * dist) / (light.dirRadius.w * light.dirRadius.w), 0.0, 1.0);
+            attenuation = (falloff * falloff) / (dist * dist + 0.001);
+        }
+        else if (type == 2) {             L = normalize(light.posType.xyz - worldPos);
+            float dist = length(light.posType.xyz - worldPos);
+            float falloff = clamp(1.0 - (dist * dist) / (light.dirRadius.w * light.dirRadius.w), 0.0, 1.0);
+            attenuation = (falloff * falloff) / (dist * dist + 0.001);
+            float theta = dot(L, normalize(-light.dirRadius.xyz));
+            float epsilon = light.shadowParams.x - light.shadowParams.y; 
+            attenuation *= clamp((theta - light.shadowParams.y) / epsilon, 0.0, 1.0);
+            if (castShadows == 1 && attenuation > 0.0) shadow = GetAtlasShadow(worldPos, light.lightSpaceMatrix, shadowSlot);
+        }
+        if (attenuation > 0.0) {
+            float phase = PhaseHG(dot(viewDir, L), 0.6); 
+            vec3 radiance = light.colorInt.xyz * light.colorInt.w * attenuation * (1.0 - shadow);
+            totalScattering += radiance * phase;
+        }
+    }
+                    vec3 ambientScattering = fogColor * 5.0 * dayNightFactor; 
+    vec3 finalScattering = (ambientScattering + totalScattering) * density;
+    imageStore(volumeTex, voxelCoord, vec4(finalScattering, density));
+}

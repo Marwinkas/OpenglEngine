@@ -146,6 +146,8 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -163,6 +165,7 @@
     <ClCompile Include="Material.cpp" />
     <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="Model.cpp" />
+    <ClCompile Include="PhysicsEngine.cpp" />
     <ClCompile Include="PostProcessingShader.cpp" />
     <ClCompile Include="Render.cpp" />
     <ClCompile Include="shaderClass.cpp" />
@@ -176,12 +179,15 @@
     <ClInclude Include="EBO.h" />
     <ClInclude Include="CullingShader.h" />
     <ClInclude Include="GameObject.h" />
+    <ClInclude Include="GLBuffer.h" />
+    <ClInclude Include="GLTexture.h" />
     <ClInclude Include="Light.h" />
     <ClInclude Include="LitShader.h" />
     <ClInclude Include="Material.h" />
     <ClInclude Include="Mesh.h" />
     <ClInclude Include="MeshRenderer.h" />
     <ClInclude Include="Model.h" />
+    <ClInclude Include="PhysicsEngine.h" />
     <ClInclude Include="PostProcessingShader.h" />
     <ClInclude Include="Render.h" />
     <ClInclude Include="Serializer.h" />
@@ -193,6 +199,7 @@
     <ClInclude Include="UI.h" />
     <ClInclude Include="VAO.h" />
     <ClInclude Include="VBO.h" />
+    <ClInclude Include="VoxelShader.h" />
     <ClInclude Include="Window.h" />
   </ItemGroup>
   <ItemGroup>
@@ -208,6 +215,9 @@
     <None Include="final.frag" />
     <None Include="hiz.comp" />
     <None Include="light_culling.comp" />
+    <None Include="rc_collapse.comp" />
+    <None Include="rc_raycast.comp" />
+    <None Include="sharpen.frag" />
     <None Include="sky.frag" />
     <None Include="sky.vert" />
     <None Include="ssao.frag" />
@@ -220,6 +230,13 @@
     <None Include="shadowMap.frag" />
     <None Include="shadowMap.vert" />
     <None Include="ssgi_blur.frag" />
+    <None Include="taa.frag" />
+    <None Include="volumetric_accumulate.comp" />
+    <None Include="volumetric_inject.comp" />
+    <None Include="voxelize.frag" />
+    <None Include="voxelize.geom" />
+    <None Include="voxelize.vert" />
+    <None Include="voxel_mipmap.comp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -13,8 +13,7 @@
     Commandline:
         --profile="core" --api="gl=4.6" --generator="c" --spec="gl" --extensions="GL_ARB_bindless_texture"
     Online:
-        https://glad.dav1d.de/#profile=core&language=c&specification=gl&loader=on&api=gl%3D4.6&extensions=GL_ARB_bindless_texture
-*/
+        https:*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1738,9 +1737,7 @@ static int find_extensionsGL(void) {
 }
 static void find_coreGL(void) {
     /* Thank you @elmindreda
-     * https://github.com/elmindreda/greg/blob/master/templates/greg.c.in#L176
-     * https://github.com/glfw/glfw/blob/master/src/context.c#L36
-     */
+     * https:     * https:     */
     int i, major, minor;
     const char* version;
     const char* prefixes[] = {
@@ -1758,7 +1755,6 @@ static void find_coreGL(void) {
             break;
         }
     }
-/* PR #18 */
 #ifdef _MSC_VER
     sscanf_s(version, "%d.%d", &major, &minor);
 #else

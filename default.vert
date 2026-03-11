@@ -20,23 +20,18 @@ uniform mat4 lightProjection;
 uniform vec3 camPos;
 void main()
 {
-    // 1. Считаем мировые координаты (где объект находится в сцене)
-    vec4 worldPos = instanceModel * vec4(aPos, 1.0f);
+        vec4 worldPos = instanceModel * vec4(aPos, 1.0f);
     crntPos = worldPos.xyz;
-    // 2. Считаем правильные направления для света и текстур
-    mat3 normalMatrix = transpose(inverse(mat3(instanceModel)));
+        mat3 normalMatrix = transpose(inverse(mat3(instanceModel)));
     vec3 T = normalize(normalMatrix * aTangent);
     vec3 N = normalize(normalMatrix * aNormal);
-    // Битангенс считаем прямо тут для надежности
-    vec3 B = normalize(cross(N, T)); 
+        vec3 B = normalize(cross(N, T)); 
     TBN = mat3(T, B, N);
     TangentViewPos = crntPos; 
     TangentFragPos = camPos - crntPos;
     Normal = N;
-    // 3. Передаем текстурные координаты и цвет дальше
-    texCoord = aTex;
+        texCoord = aTex;
     color = aColor;
     fragPosLight = lightProjection * vec4(crntPos, 1.0);
-    // 4. Финальная позиция на экране
-    gl_Position = camMatrix * worldPos; 
+        gl_Position = camMatrix * worldPos; 
 }

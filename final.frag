@@ -1,29 +1,22 @@
 ﻿#version 330 core
 out vec4 FragColor;
 in vec2 texCoords;
-uniform sampler2D screenTexture; // Наша картинка из cameraFxTexture
-uniform sampler2D bloomTexture;  // Наше свечение
-uniform sampler2D positionTexture; // Нужно только для объемных лучей (God Rays)
-uniform float time;
+uniform sampler2D screenTexture; uniform sampler2D bloomTexture;  uniform sampler2D positionTexture; uniform float time;
 uniform float gamma;
-// --- Bloom & Flares ---
 uniform bool enableBloom;
 uniform float bloomIntensity;
 uniform bool enableLensFlares;
 uniform float flareIntensity;
 uniform float ghostDispersal;
 uniform int ghosts;
-// --- God Rays ---
 uniform bool enableGodRays;
 uniform float godRaysIntensity;
 uniform vec2 lightScreenPos;
-// --- Цвет и Экспозиция ---
 uniform float currentExposure;
 uniform float exposureCompensation;
 uniform float temperature;
 uniform float contrast;
 uniform float saturation;
-// --- Линза и Пленка ---
 uniform bool enableVignette;
 uniform float vignetteIntensity;
 uniform bool enableChromaticAberration;
@@ -55,8 +48,7 @@ vec3 KelvinToRGB(float temp) {
 }
 void main() {
     vec3 finalColor = vec3(0.0);
-    // 1. Хроматическая аберрация (радужные края)
-    if (enableChromaticAberration) {
+        if (enableChromaticAberration) {
         vec2 dir = texCoords - vec2(0.5);
         float dist = length(dir); 
         vec2 rCoords = texCoords + dir * caIntensity * dist;
@@ -67,8 +59,7 @@ void main() {
     } else {
         finalColor = texture(screenTexture, texCoords).rgb;
     }
-    // 2. Свечение (Bloom) и блики (Lens Flares)
-    if (enableBloom) {
+        if (enableBloom) {
         finalColor += texture(bloomTexture, texCoords).rgb * bloomIntensity;
     }
     if (enableLensFlares) {
@@ -82,8 +73,7 @@ void main() {
         }
         finalColor += flareResult * flareIntensity;
     }
-    // 3. Объемные лучи (God Rays)
-    if (enableGodRays && godRaysIntensity > 0.0) {
+        if (enableGodRays && godRaysIntensity > 0.0) {
         vec2 deltaUV = (texCoords - lightScreenPos);
         deltaUV *= 1.0 / 30.0 * godRaysIntensity; 
         vec2 rayUV = texCoords;
@@ -98,23 +88,18 @@ void main() {
         }
         finalColor += godRaysColor;
     }
-    // 4. Температура цвета
-    vec3 tempTint = KelvinToRGB(temperature);
+        vec3 tempTint = KelvinToRGB(temperature);
     finalColor *= tempTint;
-    // 5. Яркость и контраст
-    finalColor *= (currentExposure * exposureCompensation);
+        finalColor *= (currentExposure * exposureCompensation);
     finalColor = max(vec3(0.0), (finalColor - 0.5) * contrast + 0.5);
     float luma = dot(finalColor, vec3(0.2126, 0.7152, 0.0722));
     finalColor = mix(vec3(luma), finalColor, saturation);
-    // 6. Виньетка (мягкое затемнение по краям)
-    if (enableVignette) {
+        if (enableVignette) {
         float d = distance(texCoords, vec2(0.5));
         finalColor *= smoothstep(0.8, vignetteIntensity * 0.79, d * (1.0 + vignetteIntensity));
     }
-    // 7. Кинематографичный цвет (ACES Tonemapping)
-    finalColor = ACESFilm(finalColor);
-    // 8. Резкость
-    if (enableSharpen) {
+        finalColor = ACESFilm(finalColor);
+        if (enableSharpen) {
         vec2 t = 1.0 / vec2(textureSize(screenTexture, 0));
         vec3 up    = ACESFilm(texture(screenTexture, texCoords + vec2(0.0, t.y)).rgb);
         vec3 down  = ACESFilm(texture(screenTexture, texCoords - vec2(0.0, t.y)).rgb);
@@ -123,12 +108,10 @@ void main() {
         finalColor = finalColor * (1.0 + 4.0 * sharpenIntensity) - (up + down + left + right) * sharpenIntensity;
         finalColor = max(finalColor, vec3(0.0));
     }
-    // 9. Зерно пленки
-    if (enableFilmGrain) {
+        if (enableFilmGrain) {
         float noise = random(texCoords + time) * 2.0 - 1.0; 
         finalColor += finalColor * noise * grainIntensity;
     }
-    // 10. Отправляем картинку на монитор!
-    float safeGamma = max(gamma, 0.001);
+        float safeGamma = max(gamma, 0.001);
     FragColor = vec4(pow(finalColor, vec3(1.0 / safeGamma)), 1.0);
 }

@@ -40,9 +40,7 @@ for(int i = 0; i < rayCount; i++) {
             float distToHit = length(currentPos - samplePos);
             if(length(samplePos) > 0.1 && distToHit < thickness) {
                 vec3 hitColor = texture(screenTexture, sampleUv).rgb;
-                // --- МАГИЯ ЗАТУХАНИЯ ---
-                // Чем дальше точка попадания от нашего пикселя, тем слабее свет.
-                float travelDist = length(currentPos - fragPos);
+                                                float travelDist = length(currentPos - fragPos);
                 float falloff = 1.0 / (1.0 + travelDist * travelDist); 
                 indirectLight += hitColor * max(dot(normal, rayDir), 0.0) * falloff;
                 break;

@@ -27,86 +27,133 @@
 #include <algorithm> 
 #include <windows.h>
 #include <shellapi.h>
+class Render;
 using json = nlohmann::json;
 namespace fs = std::filesystem;
 class UI {
 public:
+    int CloneHierarchy(std::vector<GameObject>& Objects, int sourceIdx, int newParentIdx) {
+        GameObject copy = Objects[sourceIdx];
+        copy.parentID = newParentIdx;
+        copy.children.clear(); 
+        Objects.push_back(copy);
+        int newIdx = (int)Objects.size() - 1;
+                        std::vector<int> sourceChildren = Objects[sourceIdx].children;
+        for (int childIdx : sourceChildren) {
+            int newChildIdx = CloneHierarchy(Objects, childIdx, newIdx);
+            Objects[newIdx].children.push_back(newChildIdx);
+        }
+        return newIdx;
+    }
+        struct ClipboardData {
+        GameObject rootObj;
+        std::vector<GameObject> descendants;
+    } objectClipboard;
+    bool hasClipboard = false;
+    void CopyToClipboard(const std::vector<GameObject>& Objects, int index) {
+        objectClipboard.rootObj = Objects[index];
+        objectClipboard.descendants.clear();
+                std::function<void(int)> gather = [&](int idx) {
+            for (int cIdx : Objects[idx].children) {
+                objectClipboard.descendants.push_back(Objects[cIdx]);
+                gather(cIdx);
+            }
+            };
+        gather(index);
+        hasClipboard = true;
+    }
+    GameObject clipboardGameObject;
+    bool hasClipboardObject = false;
     int selectedObjectIndex = 0;
     glm::mat4 model = glm::mat4(1.0f);
     fs::path projectDirectory;
     fs::path ExeDirectory;
     fs::path currentDirectory;
-    // --- НАВИГАЦИЯ И БРАУЗЕР ---
-    std::vector<fs::path> dirHistory;
+        std::vector<fs::path> dirHistory;
     int dirHistoryIndex = -1;
     std::vector<std::string> selectedAssets;
     int lastClickedIndex = -1;
     char searchBuffer[256] = "";
-    // Буфер обмена и переименование
-    std::vector<std::string> clipboardPaths;
+        std::vector<std::string> clipboardPaths;
     bool isCut = false;
     std::string renamingPath = "";
     char inlineRenameBuf[256] = "";
     bool focusRename = false;
-    // Материалы
-    char editAlbedo[256] = ""; char editNormal[256] = ""; char editMetallic[256] = "";
+        char editAlbedo[256] = ""; char editNormal[256] = ""; char editMetallic[256] = "";
     char editRoughness[256] = ""; char editHeight[256] = ""; char editAO[256] = "";
     std::unordered_map<std::string, GLuint> imageThumbnails;
-    // Состояния окон
-    bool showOutliner = true; bool showInspector = true;
+        bool showOutliner = true; bool showInspector = true;
     bool showProperties = true; bool showContentBrowser = true;
     bool resetLayout = false; bool showAboutModal = false;
-    // --- СИСТЕМА ОТМЕНЫ ДЕЙСТВИЙ (UNDO / REDO) ---
-    struct SceneSnapshot {
-        std::vector<glm::vec3> pos, rot, scl;
+        struct SceneSnapshot {
+        std::vector<GameObject> objects;
+        int selectedIndex;
     };
     std::vector<SceneSnapshot> undoStack;
     std::vector<SceneSnapshot> redoStack;
     bool wasUsingGizmo = false;
     void SaveState(const std::vector<GameObject>& Objects) {
-        SceneSnapshot snap;
-        for (const auto& obj : Objects) {
-            snap.pos.push_back(obj.transform.position);
-            snap.rot.push_back(obj.transform.rotation);
-            snap.scl.push_back(obj.transform.scale);
-        }
-        undoStack.push_back(snap);
-        redoStack.clear(); // Очищаем историю возвратов при новом действии
-        if (undoStack.size() > 50) undoStack.erase(undoStack.begin()); // Храним только последние 50 шагов
+        undoStack.push_back({ Objects, selectedObjectIndex });
+        redoStack.clear();
+        if (undoStack.size() > 50) undoStack.erase(undoStack.begin());
     }
     void Undo(std::vector<GameObject>& Objects) {
         if (undoStack.empty()) return;
-        // Сначала сохраняем текущее состояние в Redo
-        SceneSnapshot curr;
-        for (const auto& obj : Objects) {
-            curr.pos.push_back(obj.transform.position); curr.rot.push_back(obj.transform.rotation); curr.scl.push_back(obj.transform.scale);
-        }
-        redoStack.push_back(curr);
-        // Применяем предыдущее состояние
+        redoStack.push_back({ Objects, selectedObjectIndex });
         SceneSnapshot snap = undoStack.back();
         undoStack.pop_back();
-        for (size_t i = 0; i < Objects.size() && i < snap.pos.size(); ++i) {
-            Objects[i].transform.position = snap.pos[i];
-            Objects[i].transform.rotation = snap.rot[i];
-            Objects[i].transform.scale = snap.scl[i];
-            Objects[i].transform.updatematrix = true;
+        Objects = snap.objects;
+        selectedObjectIndex = snap.selectedIndex;
+        for (auto& obj : Objects) obj.transform.updatematrix = true;
+        if (selectedObjectIndex >= 0 && selectedObjectIndex < Objects.size()) {
+            ImGuizmo::RecomposeMatrixFromComponents(glm::value_ptr(Objects[selectedObjectIndex].transform.position), glm::value_ptr(Objects[selectedObjectIndex].transform.rotation), glm::value_ptr(Objects[selectedObjectIndex].transform.scale), glm::value_ptr(model));
         }
     }
     void Redo(std::vector<GameObject>& Objects) {
         if (redoStack.empty()) return;
-        SceneSnapshot curr;
-        for (const auto& obj : Objects) {
-            curr.pos.push_back(obj.transform.position); curr.rot.push_back(obj.transform.rotation); curr.scl.push_back(obj.transform.scale);
-        }
-        undoStack.push_back(curr);
+        undoStack.push_back({ Objects, selectedObjectIndex });
         SceneSnapshot snap = redoStack.back();
         redoStack.pop_back();
-        for (size_t i = 0; i < Objects.size() && i < snap.pos.size(); ++i) {
-            Objects[i].transform.position = snap.pos[i];
-            Objects[i].transform.rotation = snap.rot[i];
-            Objects[i].transform.scale = snap.scl[i];
-            Objects[i].transform.updatematrix = true;
+        Objects = snap.objects;
+        selectedObjectIndex = snap.selectedIndex;
+        for (auto& obj : Objects) obj.transform.updatematrix = true;
+        if (selectedObjectIndex >= 0 && selectedObjectIndex < Objects.size()) {
+            ImGuizmo::RecomposeMatrixFromComponents(glm::value_ptr(Objects[selectedObjectIndex].transform.position), glm::value_ptr(Objects[selectedObjectIndex].transform.rotation), glm::value_ptr(Objects[selectedObjectIndex].transform.scale), glm::value_ptr(model));
         }
+    }
+    void DeleteGameObject(std::vector<GameObject>& Objects, int indexToDelete) {
+        SaveState(Objects); 
+                std::vector<int> toDelete;
+        std::function<void(int)> gather = [&](int node) {
+            toDelete.push_back(node);
+            for (int child : Objects[node].children) gather(child);
+            };
+        gather(indexToDelete);
+                std::sort(toDelete.rbegin(), toDelete.rend());
+                int parent = Objects[indexToDelete].parentID;
+        if (parent != -1) {
+            auto& siblings = Objects[parent].children;
+            siblings.erase(std::remove(siblings.begin(), siblings.end(), indexToDelete), siblings.end());
+        }
+                for (int idx : toDelete) {
+            Objects.erase(Objects.begin() + idx);
+            for (auto& obj : Objects) {
+                if (obj.parentID > idx) obj.parentID--;
+                for (auto& childID : obj.children) {
+                    if (childID > idx) childID--;
+                }
+            }
+            if (selectedObjectIndex == idx) selectedObjectIndex = -1;
+            else if (selectedObjectIndex > idx) selectedObjectIndex--;
+        }
+    }
+        bool IsDescendant(const std::vector<GameObject>& objects, int potentialChild, int potentialParent) {
+        int curr = potentialChild;
+        while (curr != -1) {
+            if (curr == potentialParent) return true;
+            curr = objects[curr].parentID;
+        }
+        return false;
     }
     struct PostProcessSettings {
         bool enableSSAO = true; float ssaoRadius = 0.5f; float ssaoBias = 0.025f; float ssaoIntensity = 2.0f; float ssaoPower = 2.0f;
@@ -125,48 +172,42 @@ public:
         bool enableFilmGrain = false; float grainIntensity = 0.05f;
         bool enableSharpen = false; float sharpenIntensity = 0.5f;
         bool enableFog = true; float fogDensity = 0.02f; float fogHeightFalloff = 0.2f; float fogBaseHeight = 0.0f;
-        float fogColor[3] = { 0.5f, 0.6f, 0.7f }; // Базовый цвет (серо-голубой)
-        float inscatterColor[3] = { 1.0f, 0.8f, 0.5f }; // Цвет свечения от солнца (оранжеватый) float inscatterPower = 8.0f; float inscatterIntensity = 1.0f;
-        float inscatterPower = 8.0f;     // Размер солнечного пятна в тумане
-        float inscatterIntensity = 1.0f; // Яркость свечения
+        float fogColor[3] = { 0.5f, 0.6f, 0.7f };         float inscatterColor[3] = { 1.0f, 0.8f, 0.5f };         float inscatterPower = 8.0f;             float inscatterIntensity = 1.0f;     
+        bool enableContactShadows = true;
+
+        float contactShadowLength = 0.05f;
+        float contactShadowThickness = 0.1f;
+        int contactShadowSteps = 16;
+    
+    
     } ppSettings;
-    // ==========================================
-    // ФИОЛЕТОВАЯ ТЕМА BURNHOPE
-    // ==========================================
-    void SetupBurnhopeTheme() {
+                void SetupBurnhopeTheme() {
         ImGuiStyle& style = ImGui::GetStyle(); ImVec4* colors = style.Colors;
         style.WindowRounding = 6.0f; style.ChildRounding = 4.0f; style.FrameRounding = 4.0f; style.PopupRounding = 6.0f; style.TabRounding = 6.0f;
         style.WindowBorderSize = 1.0f; style.FrameBorderSize = 0.0f; style.PopupBorderSize = 1.0f; style.ItemSpacing = ImVec2(8, 6);
-        // Глубокий темно-фиолетовый фон
-        colors[ImGuiCol_Text] = ImVec4(0.95f, 0.95f, 0.95f, 1.00f);
+                colors[ImGuiCol_Text] = ImVec4(0.95f, 0.95f, 0.95f, 1.00f);
         colors[ImGuiCol_WindowBg] = ImVec4(0.11f, 0.10f, 0.13f, 1.00f);
         colors[ImGuiCol_ChildBg] = ImVec4(0.09f, 0.08f, 0.11f, 1.00f);
         colors[ImGuiCol_PopupBg] = ImVec4(0.11f, 0.10f, 0.13f, 0.98f);
         colors[ImGuiCol_Border] = ImVec4(0.24f, 0.18f, 0.32f, 1.00f);
-        // Поля ввода и фоны
-        colors[ImGuiCol_FrameBg] = ImVec4(0.16f, 0.14f, 0.20f, 1.00f);
+                colors[ImGuiCol_FrameBg] = ImVec4(0.16f, 0.14f, 0.20f, 1.00f);
         colors[ImGuiCol_FrameBgHovered] = ImVec4(0.24f, 0.18f, 0.32f, 1.00f);
         colors[ImGuiCol_FrameBgActive] = ImVec4(0.35f, 0.22f, 0.50f, 1.00f);
-        // Яркие фиолетовые акценты для кнопок
-        colors[ImGuiCol_Button] = ImVec4(0.24f, 0.18f, 0.32f, 1.00f);
+                colors[ImGuiCol_Button] = ImVec4(0.24f, 0.18f, 0.32f, 1.00f);
         colors[ImGuiCol_ButtonHovered] = ImVec4(0.35f, 0.22f, 0.50f, 1.00f);
         colors[ImGuiCol_ButtonActive] = ImVec4(0.48f, 0.30f, 0.68f, 1.00f);
-        // Заголовки (Collapsing headers)
-        colors[ImGuiCol_Header] = ImVec4(0.20f, 0.16f, 0.26f, 1.00f);
+                colors[ImGuiCol_Header] = ImVec4(0.20f, 0.16f, 0.26f, 1.00f);
         colors[ImGuiCol_HeaderHovered] = ImVec4(0.28f, 0.20f, 0.38f, 1.00f);
         colors[ImGuiCol_HeaderActive] = ImVec4(0.40f, 0.25f, 0.55f, 1.00f);
-        // Вкладки
-        colors[ImGuiCol_Tab] = ImVec4(0.14f, 0.12f, 0.17f, 1.00f);
+                colors[ImGuiCol_Tab] = ImVec4(0.14f, 0.12f, 0.17f, 1.00f);
         colors[ImGuiCol_TabHovered] = ImVec4(0.28f, 0.20f, 0.38f, 1.00f);
         colors[ImGuiCol_TabActive] = ImVec4(0.24f, 0.18f, 0.32f, 1.00f);
         colors[ImGuiCol_TabUnfocused] = ImVec4(0.11f, 0.10f, 0.13f, 1.00f);
         colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.16f, 0.14f, 0.20f, 1.00f);
-        // Ползунки и галочки
-        colors[ImGuiCol_CheckMark] = ImVec4(0.68f, 0.45f, 0.95f, 1.00f);
+                colors[ImGuiCol_CheckMark] = ImVec4(0.68f, 0.45f, 0.95f, 1.00f);
         colors[ImGuiCol_SliderGrab] = ImVec4(0.55f, 0.35f, 0.85f, 1.00f);
         colors[ImGuiCol_SliderGrabActive] = ImVec4(0.70f, 0.50f, 1.00f, 1.00f);
-        // Системные цвета
-        colors[ImGuiCol_TitleBg] = ImVec4(0.11f, 0.10f, 0.13f, 1.00f);
+                colors[ImGuiCol_TitleBg] = ImVec4(0.11f, 0.10f, 0.13f, 1.00f);
         colors[ImGuiCol_TitleBgActive] = ImVec4(0.16f, 0.14f, 0.20f, 1.00f);
         colors[ImGuiCol_MenuBarBg] = ImVec4(0.09f, 0.08f, 0.11f, 1.00f);
     }
@@ -174,9 +215,7 @@ public:
         IMGUI_CHECKVERSION(); ImGui::CreateContext(); ImGuizmo::Enable(true);
         ImGuiIO& io = ImGui::GetIO(); (void)io;
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-        // --- ПОДДЕРЖКА КИРИЛЛИЦЫ ---
-        // Загружаем стандартный шрифт Windows, который умеет читать русский язык
-        ImFontConfig font_cfg;
+                        ImFontConfig font_cfg;
         font_cfg.OversampleH = 2; font_cfg.OversampleV = 2;
         io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeui.ttf", 18.0f, &font_cfg, io.Fonts->GetGlyphRangesCyrillic());
         SetupBurnhopeTheme();
@@ -185,10 +224,16 @@ public:
         dirHistory.push_back(currentDirectory); dirHistoryIndex = 0;
         LoadPostProcessSettings();
     }
-    // ==========================================
-    // Вспомогательные функции для UI и файлов
-    // ==========================================
-    std::string TruncateText(const std::string& text, float maxWidth) {
+    void ReorderChild(std::vector<int>& children, int draggedIdx, int targetIdx, bool after) {
+        auto itSource = std::find(children.begin(), children.end(), draggedIdx);
+        if (itSource != children.end()) {
+            children.erase(itSource);
+            auto itTarget = std::find(children.begin(), children.end(), targetIdx);
+            if (after) ++itTarget;
+            children.insert(itTarget, draggedIdx);
+        }
+    }
+                std::string TruncateText(const std::string& text, float maxWidth) {
         if (ImGui::CalcTextSize(text.c_str()).x <= maxWidth) return text;
         std::string res = text;
         while (res.length() > 0 && ImGui::CalcTextSize((res + "...").c_str()).x > maxWidth) res.pop_back();
@@ -253,8 +298,7 @@ public:
         }
         if (isCut) { clipboardPaths.clear(); isCut = false; }
     }
-    // Загрузка текстур из .bhmat
-    void LoadMaterialToProperties(const std::string& path) {
+        void LoadMaterialToProperties(const std::string& path) {
         memset(editAlbedo, 0, sizeof(editAlbedo)); memset(editNormal, 0, sizeof(editNormal));
         memset(editHeight, 0, sizeof(editHeight)); memset(editAO, 0, sizeof(editAO));
         memset(editMetallic, 0, sizeof(editMetallic)); memset(editRoughness, 0, sizeof(editRoughness));
@@ -272,8 +316,7 @@ public:
             }
         }
     }
-    // Дерево папок слева
-    void DrawFolderTree(const fs::path& dir) {
+        void DrawFolderTree(const fs::path& dir) {
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_SpanAvailWidth;
         if (currentDirectory == dir) flags |= ImGuiTreeNodeFlags_Selected;
         bool isLeaf = true;
@@ -313,14 +356,12 @@ public:
         if (!j.contains("textures") || !j["textures"].contains("albedo")) return 0;
         return GetImageThumbnail(projectDirectory.string() + "/" + j["textures"]["albedo"].get<std::string>());
     }
-    // Загрузчик иконок для браузера файлов
-    GLuint GetFileIcon(const std::string& ext, bool isDir) {
+        GLuint GetFileIcon(const std::string& ext, bool isDir) {
         if (isDir) return GetImageThumbnail(ExeDirectory.string() + "/Resources/icon_folder.png");
         if (ext == ".bhmat") return GetImageThumbnail(ExeDirectory.string() + "/Resources/icon_material.png");
         if (ext == ".bhscene") return GetImageThumbnail(ExeDirectory.string() + "/Resources/icon_scene.png");
         if (ext == ".obj" || ext == ".fbx" || ext == ".gltf") return GetImageThumbnail(ExeDirectory.string() + "/Resources/icon_model.png");
-        // Для картинок мы и так грузим саму картинку, эта иконка нужна только если загрузка сломалась
-        return GetImageThumbnail(ExeDirectory.string() + "/Resources/icon_file.png");
+                return GetImageThumbnail(ExeDirectory.string() + "/Resources/icon_file.png");
     }
     void DrawMainMenuBar(std::vector<GameObject>& Objects) {
         if (ImGui::BeginMainMenuBar()) {
@@ -333,8 +374,7 @@ public:
                 ImGui::EndMenu();
             }
             if (ImGui::BeginMenu("Edit")) {
-                // Кнопки меню привязаны к функциям
-                if (ImGui::MenuItem("Undo", "Ctrl+Z", false, !undoStack.empty())) { Undo(Objects); }
+                                if (ImGui::MenuItem("Undo", "Ctrl+Z", false, !undoStack.empty())) { Undo(Objects); }
                 if (ImGui::MenuItem("Redo", "Ctrl+Shift+Z", false, !redoStack.empty())) { Redo(Objects); }
                 ImGui::EndMenu();
             }
@@ -346,14 +386,10 @@ public:
             ImGui::EndMainMenuBar();
         }
     }
-    // ==========================================
-    // ПРОДВИНУТЫЙ CONTENT BROWSER
-    // ==========================================
-    void DrawContentBrowser() {
+                void DrawContentBrowser() {
         if (!showContentBrowser) return;
         ImGui::Begin("Content Browser", &showContentBrowser);
-        // ГЛОБАЛЬНЫЕ ГОРЯЧИЕ КЛАВИШИ
-        if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)) {
+                if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)) {
             ImGuiIO& io = ImGui::GetIO();
             if (ImGui::IsKeyPressed(ImGuiKey_Delete) && !selectedAssets.empty() && renamingPath.empty()) {
                 for (const auto& path : selectedAssets) MoveToRecycleBin(path);
@@ -366,8 +402,7 @@ public:
             if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_X) && !selectedAssets.empty()) { clipboardPaths = selectedAssets; isCut = true; }
             if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_V) && !clipboardPaths.empty()) { PasteCopiedItems(currentDirectory); }
         }
-        // --- ВЕРХНЯЯ ПАНЕЛЬ ---
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
         if (dirHistoryIndex > 0) { if (ImGui::Button("<")) { dirHistoryIndex--; currentDirectory = dirHistory[dirHistoryIndex]; selectedAssets.clear(); } }
         else { ImGui::TextDisabled("<"); }
         ImGui::SameLine();
@@ -380,11 +415,9 @@ public:
         ImGui::SetNextItemWidth(200.0f);
         ImGui::InputTextWithHint("##Search", "Search all folders...", searchBuffer, sizeof(searchBuffer));
         ImGui::SameLine(); ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical); ImGui::SameLine();
-        // --- BREADCRUMBS И DRAG&DROP В НИХ ---
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
         if (ImGui::Button("All")) NavigateTo(projectDirectory);
-        if (ImGui::BeginDragDropTarget()) { // Drop в All
-            if (ImGui::AcceptDragDropPayload("CB_ITEMS")) {
+        if (ImGui::BeginDragDropTarget()) {             if (ImGui::AcceptDragDropPayload("CB_ITEMS")) {
                 for (const auto& selPath : selectedAssets) { fs::path src(selPath); if (src != projectDirectory) fs::rename(src, projectDirectory / src.filename()); }
                 selectedAssets.clear();
             }
@@ -395,8 +428,7 @@ public:
             for (auto it = rel.begin(); it != rel.end(); ++it) {
                 ImGui::SameLine(); ImGui::Text(">"); ImGui::SameLine(); accum /= *it;
                 if (ImGui::Button(it->string().c_str())) NavigateTo(accum);
-                // Drop в конкретную папку в пути!
-                if (ImGui::BeginDragDropTarget()) {
+                                if (ImGui::BeginDragDropTarget()) {
                     if (ImGui::AcceptDragDropPayload("CB_ITEMS")) {
                         for (const auto& selPath : selectedAssets) { fs::path src(selPath); if (src != accum) fs::rename(src, accum / src.filename()); }
                         selectedAssets.clear();
@@ -407,9 +439,7 @@ public:
         }
         ImGui::PopStyleColor();
         ImGui::Separator();
-        // --- МЕНЮ CREATE ---
-        // ИСПОЛЬЗУЕМ fs::path ДЛЯ ПРАВИЛЬНЫХ СЛЭШЕЙ
-        if (ImGui::BeginPopup("CreateMenuPopup")) {
+                        if (ImGui::BeginPopup("CreateMenuPopup")) {
             if (ImGui::MenuItem("New Folder")) {
                 fs::path newPath = currentDirectory / "New Folder"; int count = 1;
                 while (fs::exists(newPath)) { newPath = currentDirectory / ("New Folder " + std::to_string(count)); count++; }
@@ -428,13 +458,11 @@ public:
         ImGui::Columns(2, "CB_Columns", true);
         if (ImGui::GetColumnWidth() == ImGui::GetContentRegionAvail().x) ImGui::SetColumnWidth(0, 200.0f);
         ImGui::SetColumnWidth(0, 200.0f);
-        // === ЛЕВАЯ ПАНЕЛЬ ===
-        ImGui::BeginChild("LeftTreePanel");
+                ImGui::BeginChild("LeftTreePanel");
         DrawFolderTree(projectDirectory);
         ImGui::EndChild();
         ImGui::NextColumn();
-        // === ПРАВАЯ ПАНЕЛЬ ===
-        ImGui::BeginChild("RightGridPanel");
+                ImGui::BeginChild("RightGridPanel");
         std::vector<fs::directory_entry> items;
         std::string searchStr(searchBuffer); std::transform(searchStr.begin(), searchStr.end(), searchStr.begin(), ::tolower);
         if (!searchStr.empty()) {
@@ -465,11 +493,9 @@ public:
             if (ImGui::MenuItem("Paste", "Ctrl+V", false, !clipboardPaths.empty())) { PasteCopiedItems(currentDirectory); }
             ImGui::EndPopup();
         }
-        // --- МАТЕМАТИКА ИДЕАЛЬНОЙ СЕТКИ ---
-        float padding = 16.0f;
+                float padding = 16.0f;
         float thumbnailSize = 64.0f;
-        // Выделяем место: иконка + отступы сбоку + место для 2 строк текста снизу
-        float itemWidth = thumbnailSize + 16.0f;
+                float itemWidth = thumbnailSize + 16.0f;
         float itemHeight = thumbnailSize + 45.0f;
         float cellSize = itemWidth + padding;
         float panelWidth = ImGui::GetContentRegionAvail().x;
@@ -482,23 +508,17 @@ public:
             std::string nameNoExt = path.stem().string();
             std::string typeStr = GetFileTypeName(ext, isDir);
             ImGui::PushID(pathStr.c_str());
-            // 1. Центрируем элемент внутри колонки
-            float colWidth = ImGui::GetColumnWidth();
+                        float colWidth = ImGui::GetColumnWidth();
             float offsetX = (colWidth - itemWidth) / 2.0f;
-            if (offsetX < 0) offsetX = 0; // Защита от слишком узких колонок
-            ImVec2 startPos = ImGui::GetCursorScreenPos();
-            // Точка старта нашего безопасного "пузыря" для элемента
-            ImVec2 itemPos = ImVec2(startPos.x + offsetX, startPos.y + padding / 2.0f);
+            if (offsetX < 0) offsetX = 0;             ImVec2 startPos = ImGui::GetCursorScreenPos();
+                        ImVec2 itemPos = ImVec2(startPos.x + offsetX, startPos.y + padding / 2.0f);
             bool isSel = IsSelected(pathStr);
             bool isHovered = ImGui::IsMouseHoveringRect(itemPos, ImVec2(itemPos.x + itemWidth, itemPos.y + itemHeight));
-            // РИСУЕМ КРАСИВЫЙ ФОН
-            if (isSel) ImGui::GetWindowDrawList()->AddRectFilled(itemPos, ImVec2(itemPos.x + itemWidth, itemPos.y + itemHeight), IM_COL32(36, 112, 204, 150), 8.0f);
+                        if (isSel) ImGui::GetWindowDrawList()->AddRectFilled(itemPos, ImVec2(itemPos.x + itemWidth, itemPos.y + itemHeight), IM_COL32(36, 112, 204, 150), 8.0f);
             else if (isHovered) ImGui::GetWindowDrawList()->AddRectFilled(itemPos, ImVec2(itemPos.x + itemWidth, itemPos.y + itemHeight), IM_COL32(60, 70, 85, 120), 8.0f);
-            // 2. Невидимая кнопка поверх этого "пузыря"
-            ImGui::SetCursorScreenPos(itemPos);
+                        ImGui::SetCursorScreenPos(itemPos);
             ImGui::InvisibleButton("##hitbox", ImVec2(itemWidth, itemHeight));
-            // ЛОГИКА ВЫДЕЛЕНИЯ
-            if (ImGui::IsItemHovered()) {
+                        if (ImGui::IsItemHovered()) {
                 if (ImGui::IsMouseClicked(0)) {
                     if (ImGui::GetIO().KeyCtrl) {
                         if (isSel) selectedAssets.erase(std::remove(selectedAssets.begin(), selectedAssets.end(), pathStr), selectedAssets.end());
@@ -528,8 +548,7 @@ public:
                     if (isDir) NavigateTo(path);
                 }
             }
-            // Drag & Drop
-            if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID)) {
+                        if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID)) {
                 if (!isSel) { selectedAssets.clear(); selectedAssets.push_back(pathStr); }
                 ImGui::SetDragDropPayload("CB_ITEMS", nullptr, 0);
                 ImGui::Text("Move %d items", (int)selectedAssets.size()); ImGui::EndDragDropSource();
@@ -543,8 +562,7 @@ public:
                 }
                 ImGui::EndDragDropTarget();
             }
-            // Контекстное меню
-            if (ImGui::BeginPopupContextItem("ItemContext")) {
+                        if (ImGui::BeginPopupContextItem("ItemContext")) {
                 if (!isSel) { selectedAssets.clear(); selectedAssets.push_back(pathStr); if (ext == ".bhmat") LoadMaterialToProperties(pathStr); }
                 if (ImGui::MenuItem("Open")) { if (isDir) NavigateTo(path); } ImGui::Separator();
                 if (ImGui::MenuItem("Cut", "Ctrl+X")) { clipboardPaths = selectedAssets; isCut = true; }
@@ -553,26 +571,21 @@ public:
                 if (ImGui::MenuItem("Delete", "Del")) { for (auto& p : selectedAssets) MoveToRecycleBin(p); selectedAssets.clear(); }
                 ImGui::EndPopup();
             }
-            // === 3. ОТРИСОВКА ИКОНКИ (Строго по центру) ===
-            ImGui::SetCursorScreenPos(ImVec2(itemPos.x + (itemWidth - thumbnailSize) / 2.0f, itemPos.y + 6.0f));
+                        ImGui::SetCursorScreenPos(ImVec2(itemPos.x + (itemWidth - thumbnailSize) / 2.0f, itemPos.y + 6.0f));
             GLuint texID = 0;
             if (!isDir && (ext == ".png" || ext == ".jpg" || ext == ".jpeg")) {
-                texID = GetImageThumbnail(pathStr); // Для картинок показываем их самих
-            }
+                texID = GetImageThumbnail(pathStr);             }
             else {
-                texID = GetFileIcon(ext, isDir); // Для остальных берем наши новые иконки из Resources
-            }
+                texID = GetFileIcon(ext, isDir);             }
             if (texID != 0) {
                 ImGui::Image((ImTextureID)(intptr_t)texID, ImVec2(thumbnailSize, thumbnailSize));
             }
             else {
-                // Если картинка иконки не найдена, рисуем красивую заглушку
-                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.22f, 0.25f, 1.0f));
+                                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.22f, 0.25f, 1.0f));
                 ImGui::Button(isDir ? "DIR" : "FILE", ImVec2(thumbnailSize, thumbnailSize));
                 ImGui::PopStyleColor();
             }
-            // === 4. ОТРИСОВКА ТЕКСТА ===
-            if (renamingPath == pathStr) {
+                        if (renamingPath == pathStr) {
                 ImGui::SetCursorScreenPos(ImVec2(itemPos.x + 4, itemPos.y + thumbnailSize + 10.0f));
                 ImGui::SetNextItemWidth(itemWidth - 8);
                 if (focusRename) { ImGui::SetKeyboardFocusHere(); focusRename = false; ImGui::SetScrollHereY(); }
@@ -580,13 +593,11 @@ public:
                 if (!ImGui::IsItemActive() && !focusRename && ImGui::IsMouseClicked(0) && !ImGui::IsItemHovered()) { ApplyRename(); }
             }
             else {
-                // Центрируем ИМЯ
-                std::string truncName = TruncateText(nameNoExt, itemWidth - 8.0f);
+                                std::string truncName = TruncateText(nameNoExt, itemWidth - 8.0f);
                 float textOffset = (itemWidth - ImGui::CalcTextSize(truncName.c_str()).x) / 2.0f;
                 ImGui::SetCursorScreenPos(ImVec2(itemPos.x + textOffset, itemPos.y + thumbnailSize + 10.0f));
                 ImGui::Text("%s", truncName.c_str());
-                // Центрируем ТИП
-                float typeOffset = (itemWidth - ImGui::CalcTextSize(typeStr.c_str()).x) / 2.0f;
+                                float typeOffset = (itemWidth - ImGui::CalcTextSize(typeStr.c_str()).x) / 2.0f;
                 ImGui::SetCursorScreenPos(ImVec2(itemPos.x + typeOffset, itemPos.y + thumbnailSize + 26.0f));
                 ImGui::TextColored(ImVec4(0.5f, 0.55f, 0.6f, 1.0f), "%s", typeStr.c_str());
             }
@@ -595,62 +606,42 @@ public:
         ImGui::Columns(1); ImGui::EndChild(); ImGui::Columns(1);
         ImGui::End();
     }
-    // ... (Функции SavePostProcessSettings, LoadPostProcessSettings, DrawPostProcessContent, DrawTextureProperty, DrawPropertiesWindow, TestRayOBB, GetMouseRay остаются как в прошлом коде) ...
-    // Вставь их сюда, они работают идеально!
-    void SavePostProcessSettings() {
+            void SavePostProcessSettings() {
         std::string path = projectDirectory.string() + "/postprocess.json";
         json j;
-
-        // --- Lighting ---
-        j["enableSSAO"] = ppSettings.enableSSAO; j["ssaoRadius"] = ppSettings.ssaoRadius; j["ssaoBias"] = ppSettings.ssaoBias; j["ssaoIntensity"] = ppSettings.ssaoIntensity; j["ssaoPower"] = ppSettings.ssaoPower;
+                j["enableSSAO"] = ppSettings.enableSSAO; j["ssaoRadius"] = ppSettings.ssaoRadius; j["ssaoBias"] = ppSettings.ssaoBias; j["ssaoIntensity"] = ppSettings.ssaoIntensity; j["ssaoPower"] = ppSettings.ssaoPower;
         j["enableSSGI"] = ppSettings.enableSSGI; j["ssgiRayCount"] = ppSettings.ssgiRayCount; j["ssgiStepSize"] = ppSettings.ssgiStepSize; j["ssgiThickness"] = ppSettings.ssgiThickness; j["blurRange"] = ppSettings.blurRange;
-
-        // --- Exposure & Color ---
-        j["autoExposure"] = ppSettings.autoExposure; j["manualExposure"] = ppSettings.manualExposure; j["exposureCompensation"] = ppSettings.exposureCompensation; j["minBrightness"] = ppSettings.minBrightness; j["maxBrightness"] = ppSettings.maxBrightness;
+                j["autoExposure"] = ppSettings.autoExposure; j["manualExposure"] = ppSettings.manualExposure; j["exposureCompensation"] = ppSettings.exposureCompensation; j["minBrightness"] = ppSettings.minBrightness; j["maxBrightness"] = ppSettings.maxBrightness;
         j["contrast"] = ppSettings.contrast; j["saturation"] = ppSettings.saturation; j["temperature"] = ppSettings.temperature; j["gamma"] = ppSettings.gamma;
-
-        // --- FX ---
-        j["enableVignette"] = ppSettings.enableVignette; j["vignetteIntensity"] = ppSettings.vignetteIntensity;
+                j["enableVignette"] = ppSettings.enableVignette; j["vignetteIntensity"] = ppSettings.vignetteIntensity;
         j["enableChromaticAberration"] = ppSettings.enableChromaticAberration; j["caIntensity"] = ppSettings.caIntensity;
         j["enableBloom"] = ppSettings.enableBloom; j["bloomThreshold"] = ppSettings.bloomThreshold; j["bloomIntensity"] = ppSettings.bloomIntensity; j["bloomBlurIterations"] = ppSettings.bloomBlurIterations;
         j["enableLensFlares"] = ppSettings.enableLensFlares; j["flareIntensity"] = ppSettings.flareIntensity; j["ghostDispersal"] = ppSettings.ghostDispersal; j["ghosts"] = ppSettings.ghosts;
         j["enableGodRays"] = ppSettings.enableGodRays; j["godRaysIntensity"] = ppSettings.godRaysIntensity;
         j["enableFilmGrain"] = ppSettings.enableFilmGrain; j["grainIntensity"] = ppSettings.grainIntensity;
         j["enableSharpen"] = ppSettings.enableSharpen; j["sharpenIntensity"] = ppSettings.sharpenIntensity;
-
-        // --- Camera & Fog ---
-        j["enableDoF"] = ppSettings.enableDoF; j["focusDistance"] = ppSettings.focusDistance; j["focusRange"] = ppSettings.focusRange; j["bokehSize"] = ppSettings.bokehSize;
+                j["enableDoF"] = ppSettings.enableDoF; j["focusDistance"] = ppSettings.focusDistance; j["focusRange"] = ppSettings.focusRange; j["bokehSize"] = ppSettings.bokehSize;
         j["enableMotionBlur"] = ppSettings.enableMotionBlur; j["mbStrength"] = ppSettings.mbStrength;
         j["enableFog"] = ppSettings.enableFog; j["fogDensity"] = ppSettings.fogDensity; j["fogHeightFalloff"] = ppSettings.fogHeightFalloff; j["fogBaseHeight"] = ppSettings.fogBaseHeight;
         j["inscatterPower"] = ppSettings.inscatterPower; j["inscatterIntensity"] = ppSettings.inscatterIntensity;
-
-        // Массивы цветов нужно сохранять вручную
-        j["fogColor"] = { ppSettings.fogColor[0], ppSettings.fogColor[1], ppSettings.fogColor[2] };
+                j["fogColor"] = { ppSettings.fogColor[0], ppSettings.fogColor[1], ppSettings.fogColor[2] };
         j["inscatterColor"] = { ppSettings.inscatterColor[0], ppSettings.inscatterColor[1], ppSettings.inscatterColor[2] };
-
         std::ofstream file(path);
         file << j.dump(4);
     }
-
     void LoadPostProcessSettings() {
         std::string path = projectDirectory.string() + "/postprocess.json";
         std::ifstream file(path);
-
         if (!file.is_open()) { SavePostProcessSettings(); return; }
         json j; try { file >> j; }
         catch (...) { return; }
-
-        // Лямбда для безопасного чтения (чтобы не писать 50 проверок if)
-        auto loadFloat = [&](const char* key, float& val) { if (j.contains(key)) val = j[key]; };
+                auto loadFloat = [&](const char* key, float& val) { if (j.contains(key)) val = j[key]; };
         auto loadInt = [&](const char* key, int& val) { if (j.contains(key)) val = j[key]; };
         auto loadBool = [&](const char* key, bool& val) { if (j.contains(key)) val = j[key]; };
-
         loadBool("enableSSAO", ppSettings.enableSSAO); loadFloat("ssaoRadius", ppSettings.ssaoRadius); loadFloat("ssaoBias", ppSettings.ssaoBias); loadFloat("ssaoIntensity", ppSettings.ssaoIntensity); loadFloat("ssaoPower", ppSettings.ssaoPower);
         loadBool("enableSSGI", ppSettings.enableSSGI); loadInt("ssgiRayCount", ppSettings.ssgiRayCount); loadFloat("ssgiStepSize", ppSettings.ssgiStepSize); loadFloat("ssgiThickness", ppSettings.ssgiThickness); loadInt("blurRange", ppSettings.blurRange);
-
         loadBool("autoExposure", ppSettings.autoExposure); loadFloat("manualExposure", ppSettings.manualExposure); loadFloat("exposureCompensation", ppSettings.exposureCompensation); loadFloat("minBrightness", ppSettings.minBrightness); loadFloat("maxBrightness", ppSettings.maxBrightness);
         loadFloat("contrast", ppSettings.contrast); loadFloat("saturation", ppSettings.saturation); loadFloat("temperature", ppSettings.temperature); loadFloat("gamma", ppSettings.gamma);
-
         loadBool("enableVignette", ppSettings.enableVignette); loadFloat("vignetteIntensity", ppSettings.vignetteIntensity);
         loadBool("enableChromaticAberration", ppSettings.enableChromaticAberration); loadFloat("caIntensity", ppSettings.caIntensity);
         loadBool("enableBloom", ppSettings.enableBloom); loadFloat("bloomThreshold", ppSettings.bloomThreshold); loadFloat("bloomIntensity", ppSettings.bloomIntensity); loadInt("bloomBlurIterations", ppSettings.bloomBlurIterations);
@@ -658,29 +649,22 @@ public:
         loadBool("enableGodRays", ppSettings.enableGodRays); loadFloat("godRaysIntensity", ppSettings.godRaysIntensity);
         loadBool("enableFilmGrain", ppSettings.enableFilmGrain); loadFloat("grainIntensity", ppSettings.grainIntensity);
         loadBool("enableSharpen", ppSettings.enableSharpen); loadFloat("sharpenIntensity", ppSettings.sharpenIntensity);
-
         loadBool("enableDoF", ppSettings.enableDoF); loadFloat("focusDistance", ppSettings.focusDistance); loadFloat("focusRange", ppSettings.focusRange); loadFloat("bokehSize", ppSettings.bokehSize);
         loadBool("enableMotionBlur", ppSettings.enableMotionBlur); loadFloat("mbStrength", ppSettings.mbStrength);
         loadBool("enableFog", ppSettings.enableFog); loadFloat("fogDensity", ppSettings.fogDensity); loadFloat("fogHeightFalloff", ppSettings.fogHeightFalloff); loadFloat("fogBaseHeight", ppSettings.fogBaseHeight);
         loadFloat("inscatterPower", ppSettings.inscatterPower); loadFloat("inscatterIntensity", ppSettings.inscatterIntensity);
-
-        // Загрузка массивов цветов
-        if (j.contains("fogColor") && j["fogColor"].is_array()) {
+                if (j.contains("fogColor") && j["fogColor"].is_array()) {
             for (int i = 0; i < 3; i++) ppSettings.fogColor[i] = j["fogColor"][i];
         }
         if (j.contains("inscatterColor") && j["inscatterColor"].is_array()) {
             for (int i = 0; i < 3; i++) ppSettings.inscatterColor[i] = j["inscatterColor"][i];
         }
     }
-
     void DrawPostProcessContent() {
         ImGui::TextColored(ImVec4(0.26f, 0.59f, 0.98f, 1.0f), "Post Processing Settings");
         ImGui::Separator(); ImGui::Spacing();
-
         if (ImGui::BeginTabBar("PP_Tabs")) {
-
-            // ================= ТАБ 1: LIGHTING =================
-            if (ImGui::BeginTabItem("Lighting")) {
+                        if (ImGui::BeginTabItem("Lighting")) {
                 if (ImGui::CollapsingHeader("SSAO (Ambient Occlusion)", ImGuiTreeNodeFlags_DefaultOpen)) {
                     ImGui::Checkbox("Enable SSAO", &ppSettings.enableSSAO);
                     if (ppSettings.enableSSAO) {
@@ -701,9 +685,19 @@ public:
                 }
                 ImGui::EndTabItem();
             }
+                        if (ImGui::BeginTabItem("Shadows")) {
+                            if (ImGui::CollapsingHeader("SSCS (Contact Shadows)", ImGuiTreeNodeFlags_DefaultOpen)) {
+                                ImGui::Checkbox("Enable SSCS", &ppSettings.enableContactShadows);
+                                if (ppSettings.enableContactShadows) {
+                                    ImGui::SliderFloat("Ray Length", &ppSettings.contactShadowLength, 0.01f, 0.5f);
+                                    ImGui::SliderInt("Ray Steps", &ppSettings.contactShadowSteps, 4, 64);
+                                    ImGui::SliderFloat("Ray Thickness", &ppSettings.contactShadowThickness, 0.01f, 0.5f);
+                                }
 
-            // ================= ТАБ 2: FX / BLOOM =================
-            if (ImGui::BeginTabItem("Effects")) {
+                                ImGui::EndTabItem();
+                            }
+                        }
+                        if (ImGui::BeginTabItem("Effects")) {
                 if (ImGui::CollapsingHeader("Bloom & Lens Flares", ImGuiTreeNodeFlags_DefaultOpen)) {
                     ImGui::Checkbox("Enable Bloom", &ppSettings.enableBloom);
                     if (ppSettings.enableBloom) {
@@ -722,21 +716,16 @@ public:
                 if (ImGui::CollapsingHeader("Screen FX", ImGuiTreeNodeFlags_DefaultOpen)) {
                     ImGui::Checkbox("God Rays", &ppSettings.enableGodRays);
                     if (ppSettings.enableGodRays) ImGui::SliderFloat("Rays Power", &ppSettings.godRaysIntensity, 0.0f, 3.0f);
-
                     ImGui::Checkbox("Film Grain", &ppSettings.enableFilmGrain);
                     if (ppSettings.enableFilmGrain) ImGui::SliderFloat("Grain Strength", &ppSettings.grainIntensity, 0.0f, 0.2f);
-
                     ImGui::Checkbox("Vignette", &ppSettings.enableVignette);
                     if (ppSettings.enableVignette) ImGui::SliderFloat("Vignette Intensity", &ppSettings.vignetteIntensity, 0.1f, 2.0f);
-
                     ImGui::Checkbox("Chromatic Aberration", &ppSettings.enableChromaticAberration);
                     if (ppSettings.enableChromaticAberration) ImGui::SliderFloat("CA Intensity", &ppSettings.caIntensity, 0.001f, 0.55f);
                 }
                 ImGui::EndTabItem();
             }
-
-            // ================= ТАБ 3: CAMERA & FOG =================
-            if (ImGui::BeginTabItem("Camera & Fog")) {
+                        if (ImGui::BeginTabItem("Camera & Fog")) {
                 if (ImGui::CollapsingHeader("Depth of Field", ImGuiTreeNodeFlags_DefaultOpen)) {
                     ImGui::Checkbox("Enable DoF", &ppSettings.enableDoF);
                     if (ppSettings.enableDoF) {
@@ -759,9 +748,7 @@ public:
                 }
                 ImGui::EndTabItem();
             }
-
-            // ================= ТАБ 4: COLOR GRADING =================
-            if (ImGui::BeginTabItem("Color Grading")) {
+                        if (ImGui::BeginTabItem("Color Grading")) {
                 if (ImGui::CollapsingHeader("Exposure", ImGuiTreeNodeFlags_DefaultOpen)) {
                     ImGui::Checkbox("Auto Exposure", &ppSettings.autoExposure);
                     if (ppSettings.autoExposure) {
@@ -787,7 +774,6 @@ public:
             }
             ImGui::EndTabBar();
         }
-
         ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
         if (ImGui::Button("💾 SAVE SETTINGS", ImVec2(-1, 40))) SavePostProcessSettings();
     }
@@ -816,8 +802,7 @@ public:
         if (!showProperties) return;
         ImGui::Begin("Properties", &showProperties);
         std::string activeAsset = GetPrimarySelection();
-        // Окно свойств показывает данные только если выделен 1 элемент, ИЛИ это json пост-обработки
-        if (selectedAssets.size() > 1) {
+                if (selectedAssets.size() > 1) {
             ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Multiple items selected (%d)", (int)selectedAssets.size());
             ImGui::End(); return;
         }
@@ -833,8 +818,7 @@ public:
         }
         else if (ext == ".bhmat") {
             ImGui::TextColored(ImVec4(0.26f, 0.59f, 0.98f, 1.0f), "Material Settings: %s", filename.c_str()); ImGui::Separator(); ImGui::Spacing();
-            // Если пути текстур пустые, но в материале они есть, значит мы пропустили клик. Вызываем загрузку принудительно (страховка)
-            DrawTextureProperty("Albedo Map", editAlbedo, sizeof(editAlbedo)); ImGui::Spacing();
+                        DrawTextureProperty("Albedo Map", editAlbedo, sizeof(editAlbedo)); ImGui::Spacing();
             DrawTextureProperty("Normal Map", editNormal, sizeof(editNormal)); ImGui::Spacing();
             DrawTextureProperty("Height Map", editHeight, sizeof(editHeight)); ImGui::Spacing();
             DrawTextureProperty("Metallic Map", editMetallic, sizeof(editMetallic)); ImGui::Spacing();
@@ -844,8 +828,7 @@ public:
             if (ImGui::Button("💾 SAVE MATERIAL", ImVec2(-1, 40))) {
                 std::ifstream fileIn(activeAsset); json j;
                 if (fileIn.is_open()) { try { fileIn >> j; } catch (...) {} fileIn.close(); }
-                // Записываем новые пути
-                j["textures"]["albedo"] = editAlbedo; j["textures"]["normal"] = editNormal;
+                                j["textures"]["albedo"] = editAlbedo; j["textures"]["normal"] = editNormal;
                 j["textures"]["height"] = editHeight; j["textures"]["ao"] = editAO;
                 j["textures"]["metallic"] = editMetallic; j["textures"]["roughness"] = editRoughness;
                 std::ofstream fileOut(activeAsset); fileOut << j.dump(4); fileOut.close();
@@ -902,7 +885,147 @@ public:
         glm::vec4 rayClip = glm::vec4(x, y, -1.0f, 1.0f); glm::vec4 rayEye = invProj * rayClip;
         rayEye = glm::vec4(rayEye.x, rayEye.y, -1.0f, 0.0f); return glm::normalize(glm::vec3(invView * rayEye));
     }
-    void DrawSceneInspector(std::vector<GameObject>& Objects) {
+    void DrawOutlinerNode(std::vector<GameObject>& Objects, int index) {
+        GameObject& obj = Objects[index];
+        ImGuiTreeNodeFlags nodeFlags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_AllowItemOverlap;
+        if (selectedObjectIndex == index) nodeFlags |= ImGuiTreeNodeFlags_Selected;
+        if (obj.children.empty()) nodeFlags |= ImGuiTreeNodeFlags_Leaf;
+                bool nodeOpen = ImGui::TreeNodeEx((void*)(intptr_t)index, nodeFlags, obj.name.c_str());
+                if (ImGui::IsItemClicked()) {
+            selectedObjectIndex = index;
+            ImGuizmo::RecomposeMatrixFromComponents(glm::value_ptr(obj.transform.position), glm::value_ptr(obj.transform.rotation), glm::value_ptr(obj.transform.scale), glm::value_ptr(model));
+        }
+                if (ImGui::BeginPopupContextItem()) {
+            selectedObjectIndex = index;
+            if (ImGui::MenuItem("Duplicate", "Ctrl+D")) {
+                SaveState(Objects);
+                int newIdx = CloneHierarchy(Objects, index, obj.parentID);
+                if (obj.parentID != -1) Objects[obj.parentID].children.push_back(newIdx);
+            }
+            if (ImGui::MenuItem("Copy", "Ctrl+C")) CopyToClipboard(Objects, index);
+            if (ImGui::MenuItem("Paste as Child", "Ctrl+V", false, hasClipboard)) {
+                SaveState(Objects);
+                int newIdx = CloneHierarchy(Objects, (int)Objects.size() - 1, index);                 obj.children.push_back(newIdx);
+            }
+            ImGui::Separator();
+            if (ImGui::BeginMenu("Create...")) {
+                if (ImGui::MenuItem("Empty Object")) {
+                    SaveState(Objects);
+                    GameObject go; go.name = "Empty"; go.parentID = index;
+                    Objects.push_back(go); obj.children.push_back((int)Objects.size() - 1);
+                }
+                if (ImGui::MenuItem("Mesh Object")) {
+                    SaveState(Objects);
+                    GameObject go; go.name = "Mesh"; go.hasMesh = true; go.parentID = index;
+                    Objects.push_back(go); obj.children.push_back((int)Objects.size() - 1);
+                }
+                if (ImGui::MenuItem("Light Source")) {
+                    SaveState(Objects);
+                    GameObject go; go.name = "Light"; go.hasLight = true; go.light.enable = true; go.parentID = index;
+                    Objects.push_back(go); obj.children.push_back((int)Objects.size() - 1);
+                }
+                ImGui::EndMenu();
+            }
+            ImGui::Separator();
+            if (ImGui::MenuItem("Delete", "Del")) DeleteGameObject(Objects, index);
+            ImGui::EndPopup();
+        }
+                float iconSize = 16.0f;
+        float iconX = ImGui::GetWindowContentRegionMax().x - iconSize - 5.0f;
+        auto DrawIcon = [&](const std::string& fileName) {
+            std::string path = ExeDirectory.string() + "/Resources/" + fileName;
+            GLuint texID = GetImageThumbnail(path);
+            if (texID != 0) {
+                ImGui::SameLine(iconX);
+                ImGui::Image((ImTextureID)(intptr_t)texID, ImVec2(iconSize, iconSize));
+                iconX -= (iconSize + 4.0f);
+            }
+            };
+        if (obj.hasLight) DrawIcon("icon_light.png");
+        if (obj.hasMesh)  DrawIcon("icon_model.png");
+        if (!obj.hasMesh && !obj.hasLight) DrawIcon("icon_folder.png");
+                if (ImGui::BeginDragDropSource()) {
+            ImGui::SetDragDropPayload("OUTLINER_NODE", &index, sizeof(int));
+            ImGui::Text("Move %s", obj.name.c_str());
+            ImGui::EndDragDropSource();
+        }
+        if (ImGui::BeginDragDropTarget()) {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("OUTLINER_NODE")) {
+                int draggedIdx = *(const int*)payload->Data;
+                if (draggedIdx != index && !IsDescendant(Objects, index, draggedIdx)) {
+                    SaveState(Objects);
+                                        int oldParent = Objects[draggedIdx].parentID;
+                    if (oldParent != -1) {
+                        auto& children = Objects[oldParent].children;
+                        children.erase(std::remove(children.begin(), children.end(), draggedIdx), children.end());
+                    }
+                                        Objects[draggedIdx].parentID = index;
+                    obj.children.push_back(draggedIdx);
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
+        if (nodeOpen) {
+            std::vector<int> currentChildren = obj.children;
+            for (int childIdx : currentChildren) DrawOutlinerNode(Objects, childIdx);
+            ImGui::TreePop();
+        }
+    }
+    void DrawSceneOutliner(std::vector<GameObject>& Objects, ImGuiIO& io) {
+        if (!showOutliner) return;
+        ImGui::Begin("Scene Outliner", &showOutliner);
+        if (ImGui::Button("+ Add", ImVec2(60, 25))) ImGui::OpenPopup("GlobalCreateMenu");
+        ImGui::SameLine();
+        if (ImGui::Button("Unparent", ImVec2(80, 25)) && selectedObjectIndex != -1) {
+            SaveState(Objects);
+            int oldP = Objects[selectedObjectIndex].parentID;
+            if (oldP != -1) {
+                auto& c = Objects[oldP].children;
+                c.erase(std::remove(c.begin(), c.end(), selectedObjectIndex), c.end());
+                Objects[selectedObjectIndex].parentID = -1;
+            }
+        }
+                if (ImGui::BeginPopup("GlobalCreateMenu")) {
+            if (ImGui::MenuItem("Empty Object")) { SaveState(Objects); Objects.push_back(GameObject()); }
+            if (ImGui::MenuItem("Mesh Object")) { SaveState(Objects); GameObject go; go.hasMesh = true; go.name = "Mesh"; Objects.push_back(go); }
+            if (ImGui::MenuItem("Light Source")) { SaveState(Objects); GameObject go; go.hasLight = true; go.light.enable = true; go.name = "Light"; Objects.push_back(go); }
+            ImGui::EndPopup();
+        }
+        ImGui::Separator();
+        ImGui::BeginChild("OutlinerList", ImVec2(0, -20));
+        for (int i = 0; i < Objects.size(); i++) {
+            if (Objects[i].parentID == -1) DrawOutlinerNode(Objects, i);
+        }
+                if (ImGui::BeginPopupContextWindow("EmptySpaceMenu", ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
+            if (ImGui::BeginMenu("Create...")) {
+                if (ImGui::MenuItem("Empty Object")) { SaveState(Objects); Objects.push_back(GameObject()); }
+                if (ImGui::MenuItem("Mesh Object")) { SaveState(Objects); GameObject go; go.hasMesh = true; Objects.push_back(go); }
+                if (ImGui::MenuItem("Light Source")) { SaveState(Objects); GameObject go; go.hasLight = true; go.light.enable = true; Objects.push_back(go); }
+                ImGui::EndMenu();
+            }
+            if (ImGui::MenuItem("Paste", "Ctrl+V", false, hasClipboard)) {
+                SaveState(Objects);
+                CloneHierarchy(Objects, (int)Objects.size() - 1, -1);             }
+            ImGui::EndPopup();
+        }
+                ImGui::Dummy(ImGui::GetContentRegionAvail());
+        if (ImGui::BeginDragDropTarget()) {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("OUTLINER_NODE")) {
+                int draggedIdx = *(const int*)payload->Data;
+                SaveState(Objects);
+                int oldParent = Objects[draggedIdx].parentID;
+                if (oldParent != -1) {
+                    auto& children = Objects[oldParent].children;
+                    children.erase(std::remove(children.begin(), children.end(), draggedIdx), children.end());
+                    Objects[draggedIdx].parentID = -1;
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
+        ImGui::EndChild();
+        ImGui::End();
+    }
+                void DrawSceneInspector(std::vector<GameObject>& Objects) {
         if (!showInspector) return;
         ImGui::Begin("Scene Inspector", &showInspector);
         if (Objects.empty() || selectedObjectIndex < 0 || selectedObjectIndex >= Objects.size()) {
@@ -910,11 +1033,14 @@ public:
         }
         GameObject& obj = Objects[selectedObjectIndex];
         char nameBuf[128]; strcpy_s(nameBuf, sizeof(nameBuf), obj.name.c_str());
-        ImGui::PushItemWidth(-1); if (ImGui::InputText("##ObjectName", nameBuf, sizeof(nameBuf))) obj.name = nameBuf; ImGui::PopItemWidth(); ImGui::Spacing();
+        ImGui::PushItemWidth(-1);
+        if (ImGui::InputText("##ObjectName", nameBuf, sizeof(nameBuf))) {
+                        obj.name = nameBuf;
+        }
+        ImGui::PopItemWidth(); ImGui::Spacing();
         if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::Checkbox("Static", &obj.isStatic); bool transformChanged = false;
+            bool transformChanged = false;
             glm::vec3 pos = obj.transform.position; glm::vec3 rot = obj.transform.rotation; glm::vec3 scl = obj.transform.scale;
-            // Если начали тянуть за слайдер - сохраняем шаг для Undo!
             if (ImGui::DragFloat3("Position", glm::value_ptr(pos), 0.1f)) transformChanged = true;
             if (ImGui::IsItemActivated()) SaveState(Objects);
             if (ImGui::DragFloat3("Rotation", glm::value_ptr(rot), 1.0f)) transformChanged = true;
@@ -926,73 +1052,103 @@ public:
                 ImGuizmo::RecomposeMatrixFromComponents(glm::value_ptr(obj.transform.position), glm::value_ptr(obj.transform.rotation), glm::value_ptr(obj.transform.scale), glm::value_ptr(model));
             }
         }
-        if (ImGui::CollapsingHeader("Mesh", ImGuiTreeNodeFlags_DefaultOpen)) {
-            if (DrawAssetPicker("Model", obj.modelPath, { ".fbx", ".obj" })) {
-                std::string fullModelPath = projectDirectory.string() + "/" + obj.modelPath;
-                if (Serializer::loadedModels.find(fullModelPath) == Serializer::loadedModels.end()) Serializer::loadedModels[fullModelPath] = new Model(fullModelPath);
-                Model* newModel = Serializer::loadedModels[fullModelPath]; obj.renderer.subMeshes.clear();
-                for (int i = 0; i < newModel->meshes.size(); i++) {
-                    Material* mat = (i < obj.materialPaths.size()) ? Serializer::LoadMaterial(projectDirectory.string() + "/" + obj.materialPaths[i], projectDirectory.string()) : new Material();
-                    obj.renderer.AddSubMesh(&newModel->meshes[i], mat);
+                if (obj.hasMesh) {
+            bool removeMesh = false;
+            if (ImGui::CollapsingHeader("Mesh Renderer", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowItemOverlap)) {
+                ImGui::SameLine(ImGui::GetWindowWidth() - 40);
+                if (ImGui::Button("X##RM_MESH")) removeMesh = true; 
+                ImGui::Checkbox("Static", &obj.isStatic); ImGui::SameLine();
+                ImGui::Checkbox("Visible", &obj.isVisible); ImGui::SameLine();
+                ImGui::Checkbox("Cast Shadow", &obj.castShadow);
+                if (DrawAssetPicker("Model", obj.modelPath, { ".fbx", ".obj" })) {
+                    SaveState(Objects);
+                    std::string fullModelPath = projectDirectory.string() + "/" + obj.modelPath;
+                    if (Serializer::loadedModels.find(fullModelPath) == Serializer::loadedModels.end()) Serializer::loadedModels[fullModelPath] = new Model(fullModelPath);
+                    Model* newModel = Serializer::loadedModels[fullModelPath]; obj.renderer.subMeshes.clear();
+                    for (int i = 0; i < newModel->meshes.size(); i++) {
+                        Material* mat = (i < obj.materialPaths.size()) ? Serializer::LoadMaterial(projectDirectory.string() + "/" + obj.materialPaths[i], projectDirectory.string()) : new Material();
+                        obj.renderer.AddSubMesh(&newModel->meshes[i], mat);
+                    }
+                }
+                ImGui::Separator();
+                ImGui::Text("Materials");
+                if (obj.materialPaths.size() != obj.renderer.subMeshes.size()) obj.materialPaths.resize(obj.renderer.subMeshes.size(), "");
+                for (int i = 0; i < obj.renderer.subMeshes.size(); i++) {
+                    char slotName[32]; sprintf_s(slotName, "Material %d", i);
+                    if (DrawAssetPicker(slotName, obj.materialPaths[i], { ".bhmat" })) {
+                        SaveState(Objects);
+                        Material* newMat = Serializer::LoadMaterial(projectDirectory.string() + "/" + obj.materialPaths[i], projectDirectory.string());
+                        obj.renderer.subMeshes[i].material = newMat;
+                    }
                 }
             }
+            if (removeMesh) { SaveState(Objects); obj.hasMesh = false; }
         }
-        if (ImGui::CollapsingHeader("Materials", ImGuiTreeNodeFlags_DefaultOpen)) {
-            if (obj.materialPaths.size() != obj.renderer.subMeshes.size()) obj.materialPaths.resize(obj.renderer.subMeshes.size(), "");
-            for (int i = 0; i < obj.renderer.subMeshes.size(); i++) {
-                char slotName[32]; sprintf_s(slotName, "Material %d", i);
-                if (DrawAssetPicker(slotName, obj.materialPaths[i], { ".bhmat" })) {
-                    std::string fullMatPath = projectDirectory.string() + "/" + obj.materialPaths[i];
-                    Material* newMat = Serializer::LoadMaterial(fullMatPath, projectDirectory.string()); obj.renderer.subMeshes[i].material = newMat;
-                }
-            }
-        }
-        if (ImGui::CollapsingHeader("Render", ImGuiTreeNodeFlags_DefaultOpen)) { ImGui::Checkbox("Visible", &obj.isVisible); ImGui::Checkbox("Cast Shadow", &obj.castShadow); }
-        if (ImGui::CollapsingHeader("Light Component", ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::Checkbox("Enable Light", &obj.light.enable);
-            if (obj.light.enable) {
+                if (obj.hasLight) {
+            bool removeLight = false;
+            if (ImGui::CollapsingHeader("Light Component", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowItemOverlap)) {
+                ImGui::SameLine(ImGui::GetWindowWidth() - 40);
+                if (ImGui::Button("X##RM_LIGHT")) removeLight = true;
+                ImGui::Checkbox("Enable Light", &obj.light.enable);
                 const char* lightTypes[] = { "Directional", "Point", "Spot", "Rect", "Sky" }; int currentType = (int)obj.light.type;
-                if (ImGui::Combo("Type", &currentType, lightTypes, IM_ARRAYSIZE(lightTypes))) obj.light.type = (LightType)currentType;
+                if (ImGui::Combo("Type", &currentType, lightTypes, IM_ARRAYSIZE(lightTypes))) { SaveState(Objects); obj.light.type = (LightType)currentType; }
                 const char* mobilityTypes[] = { "Static", "Movable" }; int currentMob = (int)obj.light.mobility;
-                if (ImGui::Combo("Mobility", &currentMob, mobilityTypes, IM_ARRAYSIZE(mobilityTypes))) {
-                    obj.light.mobility = (LightMobility)currentMob; if (obj.light.mobility == LightMobility::Static) obj.light.needsShadowUpdate = true;
-                }
-                ImGui::Separator(); ImGui::ColorEdit3("Color", glm::value_ptr(obj.light.color)); ImGui::DragFloat("Intensity", &obj.light.intensity, 0.1f, 0.0f, 1000.0f);
+                if (ImGui::Combo("Mobility", &currentMob, mobilityTypes, IM_ARRAYSIZE(mobilityTypes))) { SaveState(Objects); obj.light.mobility = (LightMobility)currentMob; obj.light.needsShadowUpdate = true; }
+                ImGui::ColorEdit3("Color", glm::value_ptr(obj.light.color));
+                ImGui::DragFloat("Intensity", &obj.light.intensity, 0.1f, 0.0f, 1000.0f);
                 if (obj.light.type == LightType::Point || obj.light.type == LightType::Spot) ImGui::DragFloat("Radius", &obj.light.radius, 0.5f, 0.1f, 500.0f);
                 if (obj.light.type == LightType::Spot) {
                     ImGui::DragFloat("Inner Angle", &obj.light.innerCone, 0.5f, 0.0f, obj.light.outerCone); ImGui::DragFloat("Outer Angle", &obj.light.outerCone, 0.5f, obj.light.innerCone, 90.0f);
                 }
-                ImGui::Separator(); ImGui::Checkbox("Cast Shadows", &obj.light.castShadows);
+                ImGui::Checkbox("Cast Shadows", &obj.light.castShadows);
             }
+            if (removeLight) { SaveState(Objects); obj.hasLight = false; }
+        }
+        ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+                if (ImGui::Button("Add Component", ImVec2(-1, 30))) ImGui::OpenPopup("AddComponentPopup");
+        if (ImGui::BeginPopup("AddComponentPopup")) {
+            if (!obj.hasMesh && ImGui::MenuItem("Mesh Renderer")) { SaveState(Objects); obj.hasMesh = true; }
+            if (!obj.hasLight && ImGui::MenuItem("Light Component")) { SaveState(Objects); obj.hasLight = true; }
+            ImGui::EndPopup();
         }
         ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
         if (ImGui::Button("💾 SAVE SCENE", ImVec2(-1, 40))) Serializer::SaveScene(projectDirectory.string() + "/level1.bhscene", Objects);
         ImGui::End();
     }
-    void DrawSceneOutliner(std::vector<GameObject>& Objects, ImGuiIO& io) {
-        if (!showOutliner) return;
-        ImGui::Begin("Scene Outliner", &showOutliner);
-        ImGui::TextColored(ImVec4(0.68f, 0.45f, 0.95f, 1.0f), "FPS: %.1f", io.Framerate); ImGui::Separator();
-        for (int i = 0; i < Objects.size(); i++) {
-            char buf[128]; std::string objName = Objects[i].name.empty() ? "GameObject" : Objects[i].name;
-            sprintf_s(buf, sizeof(buf), " %s ##%d", objName.c_str(), i);
-            if (ImGui::Selectable(buf, selectedObjectIndex == i)) {
-                selectedObjectIndex = i;
-                ImGuizmo::RecomposeMatrixFromComponents(glm::value_ptr(Objects[selectedObjectIndex].transform.position), glm::value_ptr(Objects[selectedObjectIndex].transform.rotation), glm::value_ptr(Objects[selectedObjectIndex].transform.scale), glm::value_ptr(model));
-            }
+    void UpdateMatrices(std::vector<GameObject>& objects, int index, glm::mat4 parentMatrix) {
+        GameObject& obj = objects[index];
+                glm::mat4 localMatrix = glm::mat4(1.0f);
+        ImGuizmo::RecomposeMatrixFromComponents(
+            glm::value_ptr(obj.transform.position),
+            glm::value_ptr(obj.transform.rotation),
+            glm::value_ptr(obj.transform.scale),
+            glm::value_ptr(localMatrix)
+        );
+                obj.transform.matrix = parentMatrix * localMatrix;
+                for (int childIdx : obj.children) {
+            UpdateMatrices(objects, childIdx, obj.transform.matrix);
         }
-        ImGui::End();
     }
     void Draw(Window& window, Camera& camera, std::vector<GameObject>& Objects, Render& render) {
         ImGui_ImplOpenGL3_NewFrame(); ImGui_ImplGlfw_NewFrame(); ImGui::NewFrame();
-        // 1. Верхнее меню
-        DrawMainMenuBar(Objects);
-        // 2. ГЛОБАЛЬНЫЕ ГОРЯЧИЕ КЛАВИШИ UNDO / REDO
-        ImGuiIO& io = ImGui::GetIO();
-        if (io.KeyCtrl && !io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z)) { Undo(Objects); }
-        if (io.KeyCtrl && io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z)) { Redo(Objects); }
-        // 3. DockSpace
-        ImGuiViewport* viewport = ImGui::GetMainViewport();
+                DrawMainMenuBar(Objects);
+                ImGuiIO& io = ImGui::GetIO();
+        if (!ImGui::IsAnyItemActive()) {
+            if (io.KeyCtrl && !io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z)) Undo(Objects);
+            if (io.KeyCtrl && io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z)) Redo(Objects);
+                        if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_D) && selectedObjectIndex != -1) {
+                SaveState(Objects);
+                int newIdx = CloneHierarchy(Objects, selectedObjectIndex, Objects[selectedObjectIndex].parentID);
+                if (Objects[newIdx].parentID != -1) {
+                    Objects[Objects[newIdx].parentID].children.push_back(newIdx);
+                }
+                selectedObjectIndex = newIdx;             }
+            if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_C) && selectedObjectIndex != -1) CopyToClipboard(Objects, selectedObjectIndex);
+                        if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_V) && hasClipboard) {
+                SaveState(Objects);
+                                            }
+        }
+                ImGuiViewport* viewport = ImGui::GetMainViewport();
         ImGui::SetNextWindowPos(viewport->WorkPos); ImGui::SetNextWindowSize(viewport->WorkSize); ImGui::SetNextWindowViewport(viewport->ID);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f); ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f); ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
         ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoBackground;
@@ -1010,44 +1166,55 @@ public:
             ImGui::DockBuilderDockWindow("Scene Outliner", dock_left); ImGui::DockBuilderDockWindow("Content Browser", dock_bottom);
             ImGui::DockBuilderDockWindow("Scene Inspector", dock_right); ImGui::DockBuilderDockWindow("Properties", dock_right);
             ImGui::DockBuilderFinish(dockspace_id);
-            showOutliner = true; showInspector = true; showProperties = true; showContentBrowser = true;
         }
         ImGui::End();
-        // 4. Использование ГИЗМО
-        ImGuizmo::BeginFrame(); ImGuizmo::SetOrthographic(false); ImGuizmo::SetDrawlist(ImGui::GetForegroundDrawList()); ImGuizmo::SetRect(0, 0, (float)window.width, (float)window.height);
-        static ImGuizmo::OPERATION currentGizmoOperation = ImGuizmo::TRANSLATE; static ImGuizmo::MODE currentGizmoMode = ImGuizmo::WORLD; static bool snapEnabled = false; static float snapValue[3] = { 1.0f, 1.0f, 1.0f };
-        if (ImGui::IsKeyPressed(ImGuiKey_Q)) currentGizmoOperation = ImGuizmo::TRANSLATE; if (ImGui::IsKeyPressed(ImGuiKey_E)) currentGizmoOperation = ImGuizmo::ROTATE; if (ImGui::IsKeyPressed(ImGuiKey_R)) currentGizmoOperation = ImGuizmo::SCALE;
-        glm::mat4 view = glm::lookAt(camera.Position, camera.Position + camera.Orientation, camera.Up); glm::mat4 proj = camera.GetProjectionMatrix(45.0f, 0.1f, 100.0f);
-        if (ImGui::IsMouseClicked(0) && !ImGui::IsAnyItemHovered() && !ImGuizmo::IsOver()) {
+                ImGuizmo::BeginFrame(); ImGuizmo::SetOrthographic(false); ImGuizmo::SetDrawlist(ImGui::GetForegroundDrawList()); ImGuizmo::SetRect(0, 0, (float)window.width, (float)window.height);
+        static ImGuizmo::OPERATION currentGizmoOperation = ImGuizmo::TRANSLATE;
+        static ImGuizmo::MODE currentGizmoMode = ImGuizmo::WORLD;
+        if (ImGui::IsKeyPressed(ImGuiKey_Q)) currentGizmoOperation = ImGuizmo::TRANSLATE;
+        if (ImGui::IsKeyPressed(ImGuiKey_E)) currentGizmoOperation = ImGuizmo::ROTATE;
+        if (ImGui::IsKeyPressed(ImGuiKey_R)) currentGizmoOperation = ImGuizmo::SCALE;
+        glm::mat4 view = camera.GetViewMatrix();
+        glm::mat4 proj = camera.GetProjectionMatrix(45.0f, 0.1f, 1000.0f); 
+                if (ImGui::IsMouseClicked(0) && !ImGui::IsAnyItemHovered() && !ImGuizmo::IsOver()) {
             glm::vec3 rayOrigin = camera.Position; glm::vec3 rayDir = GetMouseRay(window, camera);
             float closestT = 1000.0f; int hitIndex = -1;
             for (int i = 0; i < Objects.size(); i++) {
-                if (Objects[i].renderer.subMeshes.size() < 1) continue; float t;
-                if (TestRayOBB(rayOrigin, rayDir, Objects[i].transform.matrix, t)) { if (t < closestT) { closestT = t; hitIndex = i; } }
+                float t;
+                if (TestRayOBB(rayOrigin, rayDir, Objects[i].transform.matrix, t)) {
+                    if (t < closestT) { closestT = t; hitIndex = i; }
+                }
             }
-            if (hitIndex != -1) {
-                selectedObjectIndex = hitIndex;
-                ImGuizmo::RecomposeMatrixFromComponents(glm::value_ptr(Objects[selectedObjectIndex].transform.position), glm::value_ptr(Objects[selectedObjectIndex].transform.rotation), glm::value_ptr(Objects[selectedObjectIndex].transform.scale), glm::value_ptr(model));
+            if (hitIndex != -1) selectedObjectIndex = hitIndex;
+        }
+        if (selectedObjectIndex != -1 && selectedObjectIndex < Objects.size()) {
+            GameObject& obj = Objects[selectedObjectIndex];
+                        model = obj.transform.matrix;
+                        if (ImGuizmo::IsUsing() && !wasUsingGizmo) SaveState(Objects);
+            wasUsingGizmo = ImGuizmo::IsUsing();
+            ImGuizmo::Manipulate(glm::value_ptr(view), glm::value_ptr(proj), currentGizmoOperation, currentGizmoMode, glm::value_ptr(model));
+            if (ImGuizmo::IsUsing()) {
+                glm::mat4 newWorldMatrix = model;
+                                if (obj.parentID != -1) {
+                    glm::mat4 parentWorldMatrix = Objects[obj.parentID].transform.matrix;
+                                        newWorldMatrix = glm::inverse(parentWorldMatrix) * newWorldMatrix;
+                }
+                                ImGuizmo::DecomposeMatrixToComponents(
+                    glm::value_ptr(newWorldMatrix),
+                    glm::value_ptr(obj.transform.position),
+                    glm::value_ptr(obj.transform.rotation),
+                    glm::value_ptr(obj.transform.scale)
+                );
+                obj.transform.updatematrix = true;
             }
         }
-        if (Objects.size() > 0 && selectedObjectIndex < Objects.size() && !ImGuizmo::IsUsing()) {
-            ImGuizmo::RecomposeMatrixFromComponents(glm::value_ptr(Objects[selectedObjectIndex].transform.position), glm::value_ptr(Objects[selectedObjectIndex].transform.rotation), glm::value_ptr(Objects[selectedObjectIndex].transform.scale), glm::value_ptr(model));
-        }
-        if (snapEnabled) ImGuizmo::Manipulate(glm::value_ptr(view), glm::value_ptr(proj), currentGizmoOperation, currentGizmoMode, glm::value_ptr(model), nullptr, snapValue);
-        else ImGuizmo::Manipulate(glm::value_ptr(view), glm::value_ptr(proj), currentGizmoOperation, currentGizmoMode, glm::value_ptr(model));
-        // --- ЛОГИКА СОХРАНЕНИЯ ДЛЯ UNDO ПРИ ИСПОЛЬЗОВАНИИ ГИЗМО ---
-        bool isUsingGizmo = ImGuizmo::IsUsing();
-        if (isUsingGizmo && !wasUsingGizmo) {
-            SaveState(Objects); // Пользователь только что начал тянуть объект
-        }
-        wasUsingGizmo = isUsingGizmo;
-        if (!io.WantCaptureMouse && !isUsingGizmo) camera.Inputs(window.window);
-        if (isUsingGizmo && Objects.size() > 0 && selectedObjectIndex < Objects.size()) {
-            glm::vec3 translation, rotation, scale; ImGuizmo::DecomposeMatrixToComponents(glm::value_ptr(model), glm::value_ptr(translation), glm::value_ptr(rotation), glm::value_ptr(scale));
-            Objects[selectedObjectIndex].transform.position = translation; Objects[selectedObjectIndex].transform.rotation = rotation; Objects[selectedObjectIndex].transform.scale = scale; Objects[selectedObjectIndex].transform.updatematrix = true;
-        }
-        DrawSceneOutliner(Objects, io); DrawSceneInspector(Objects); DrawContentBrowser(); DrawPropertiesWindow();
-        ImGui::Render(); ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        if (!io.WantCaptureMouse && !ImGuizmo::IsUsing()) camera.Inputs(window.window);
+                DrawSceneOutliner(Objects, io);
+        DrawSceneInspector(Objects);
+        DrawContentBrowser();
+        DrawPropertiesWindow();
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     }
 };
 #endif

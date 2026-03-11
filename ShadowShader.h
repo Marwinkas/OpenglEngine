@@ -5,21 +5,32 @@
 #include<glm/gtc/type_ptr.hpp>
 #include<glad/glad.h>
 #include "shaderClass.h"
-class ShadowShader {
+class ShadowShader: public Shader {
 public:
-    Shader atlasShader;
+    struct {
+        GLint lightProjection;
+    } loc;
+    ShadowShader() : Shader("shadowMap.vert", "shadowMap.frag") {
+        Init();
+    }
     unsigned int atlasFBO;
     unsigned int shadowAtlas;
-    int atlasResolution = 8192; // Размер всего гигантского холста
-    int tileSize = 2048;        // Размер одной тени. Значит у нас сетка 4x4 (16 теней одновременно!)
-    ShadowShader() {
-        // Убедись, что эти файлы шейдеров у тебя есть (те самые старые для солнца)
-        atlasShader = Shader("shadowMap.vert", "shadowMap.frag");
+    int atlasResolution = 8192;     
+    int tileSize = 2048;            
+    unsigned int sunShadowArray;
+    unsigned int staticSunShadowArray; // Кэш для статики
+    bool staticShadowsDirty = true;    // Флаг: нужно ли перерисовать статику?
+    bool sunIsStatic = false;
+    unsigned int sunFBO;
+    int sunShadowSize = 2048;     
+    std::vector<float> cascadeSplits = { 20.0f, 50.0f, 150.0f, 1000.0f }; 
+
+    void Init() override {
+        loc.lightProjection = GetLoc("lightProjection");
         glGenFramebuffers(1, &atlasFBO);
         glGenTextures(1, &shadowAtlas);
         glBindTexture(GL_TEXTURE_2D, shadowAtlas);
-        // Создаем огромную пустую текстуру
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, atlasResolution, atlasResolution, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, atlasResolution, atlasResolution, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
@@ -28,6 +39,35 @@ public:
         glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, clampColor);
         glBindFramebuffer(GL_FRAMEBUFFER, atlasFBO);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowAtlas, 0);
+        glDrawBuffer(GL_NONE);
+        glReadBuffer(GL_NONE);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+                glGenTextures(1, &sunShadowArray);
+        glBindTexture(GL_TEXTURE_2D_ARRAY, sunShadowArray);
+                glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_DEPTH_COMPONENT32F, sunShadowSize, sunShadowSize, 4);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+        glTexParameterfv(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BORDER_COLOR, borderColor);
+
+
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glGenTextures(1, &staticSunShadowArray);
+        glBindTexture(GL_TEXTURE_2D_ARRAY, staticSunShadowArray);
+        glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_DEPTH_COMPONENT32F, sunShadowSize, sunShadowSize, 4);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        glTexParameterfv(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BORDER_COLOR, borderColor);
+
+
+        glGenFramebuffers(1, &sunFBO);
+        glBindFramebuffer(GL_FRAMEBUFFER, sunFBO);
+        glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, sunShadowArray, 0);
         glDrawBuffer(GL_NONE);
         glReadBuffer(GL_NONE);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);

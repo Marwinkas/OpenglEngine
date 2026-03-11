@@ -1,0 +1,79 @@
+﻿#version 430 core
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+layout(rgba16f, binding = 0) writeonly uniform image2DArray cascadeArray;
+uniform sampler2D positionTexture;
+uniform sampler2D normalTexture;
+uniform sampler3D voxelTexture; 
+uniform vec3 camPos;
+uniform float time;
+uniform int cascadeLevel; 
+uniform vec3 gridMin;
+uniform vec3 gridMax;
+float random(vec2 st, float seed) {
+    return fract(sin(dot(st.xy, vec2(12.9898, 78.233)) + seed) * 43758.5453123);
+}
+vec3 GetRayDirection(uvec2 rayCoord, uint probeDim, vec3 normal, float jitterAngle) {
+    vec2 uv = (vec2(rayCoord) + 0.5) / float(probeDim);
+    uv = uv * 2.0 - 1.0; 
+    float zSq = 1.0 - uv.x*uv.x - uv.y*uv.y;
+    if (zSq < 0.0) return normal; 
+    vec3 dir = normalize(vec3(uv.x, uv.y, sqrt(zSq)));
+    vec3 up = abs(normal.z) < 0.999 ? vec3(0,0,1) : vec3(1,0,0);
+    vec3 tangent = normalize(cross(up, normal));
+    vec3 bitangent = cross(normal, tangent);
+    float cosA = cos(jitterAngle); float sinA = sin(jitterAngle);
+    vec3 rotTangent = tangent * cosA - bitangent * sinA;
+    vec3 rotBitangent = tangent * sinA + bitangent * cosA;
+    return normalize(rotTangent * dir.x + rotBitangent * dir.y + normal * dir.z);
+}
+void main() {
+    ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 texSize = imageSize(cascadeArray).xy;
+    if (pixelCoord.x >= texSize.x || pixelCoord.y >= texSize.y) return;
+    uint probeDim = 2 << cascadeLevel; 
+    uvec2 probeCoord = pixelCoord / probeDim;
+    uvec2 rayCoord = pixelCoord % probeDim;
+    vec2 screenUV = (vec2(probeCoord * probeDim + (probeDim/2))) / vec2(texSize);
+    vec3 worldPos = texture(positionTexture, screenUV).rgb;
+        if (length(worldPos) < 0.1) {
+        imageStore(cascadeArray, ivec3(pixelCoord, cascadeLevel), vec4(0.0));
+        return;
+    }
+    vec3 normal = normalize(texture(normalTexture, screenUV).rgb);
+   int bayerX = pixelCoord.x % 4;
+    int bayerY = pixelCoord.y % 4;
+        float bayerMatrix[16] = float[16](
+        0.0/16.0,  8.0/16.0,  2.0/16.0, 10.0/16.0,
+        12.0/16.0, 4.0/16.0, 14.0/16.0,  6.0/16.0,
+        3.0/16.0, 11.0/16.0,  1.0/16.0,  9.0/16.0,
+        15.0/16.0, 7.0/16.0, 13.0/16.0,  5.0/16.0
+    );
+    float dither = bayerMatrix[bayerY * 4 + bayerX];
+        float jitterAngle = dither * 6.2831853; 
+    vec3 rayDir = GetRayDirection(rayCoord, probeDim, normal, jitterAngle);
+    float baseLength = 0.5; 
+    float r0 = (cascadeLevel == 0) ? 0.0 : baseLength * pow(4.0, cascadeLevel - 1);
+    float r1 = baseLength * pow(4.0, cascadeLevel);
+    vec3 radiance = vec3(0.0);
+    float hit = 0.0;
+        int steps = 10;
+    float stepSize = (r1 - r0) / float(steps);
+        vec3 currentPos = worldPos + normal * 0.5 + rayDir * (r0 + stepSize * dither);
+            float mipLevel = float(cascadeLevel) * 1.0; 
+    for (int i = 0; i < steps; ++i) {
+        currentPos += rayDir * stepSize;
+                vec3 uvw = (currentPos - gridMin) / (gridMax - gridMin);
+                if(any(lessThan(uvw, vec3(0.0))) || any(greaterThan(uvw, vec3(1.0)))) break;
+                vec4 voxelData = textureLod(voxelTexture, uvw, mipLevel);
+                if (voxelData.a > 0.05) {
+                        float traveledDist = r0 + float(i) * stepSize;
+                        float attenuation = 1.0 / (1.0 + traveledDist * traveledDist * 4.0);
+                        radiance = voxelData.rgb * attenuation;
+            hit = 1.0;
+            break; 
+        }
+    }
+    float luma = dot(radiance, vec3(0.299, 0.587, 0.114));
+    if (luma > 2.0) radiance = radiance * (2.0 / luma); 
+    imageStore(cascadeArray, ivec3(pixelCoord, cascadeLevel), vec4(radiance, hit));
+}

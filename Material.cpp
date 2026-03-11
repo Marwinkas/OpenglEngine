@@ -7,7 +7,12 @@ std::string getExecutablePath()
 	char buffer[MAX_PATH];
 	GetModuleFileNameA(NULL, buffer, MAX_PATH);
 	std::filesystem::path exePath(buffer);
-	return exePath.parent_path().string();
+	std::string path = exePath.parent_path().string();
+
+	// Лёша, это поможет нам понять, не "врет" ли путь
+	std::cout << "[DEBUG] Путь к EXE: " << path << std::endl;
+
+	return path;
 }
 MaterialGPUData Material::getGPUData() {
 	MaterialGPUData data;

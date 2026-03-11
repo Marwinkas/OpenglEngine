@@ -59,11 +59,9 @@ public:
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     }
     void Draw(Camera& camera, glm::vec3 sunDirection) {
-        // Хитрость 1: Рисуем небо там, где глубина равна 1.0 (самая дальняя)
-        glDepthFunc(GL_LEQUAL);
+                glDepthFunc(GL_LEQUAL);
         skyShader.Activate();
-        // Хитрость 2: Отрезаем перемещение камеры (чтобы мы не могли дойти до края неба)
-        glm::mat4 view = glm::mat4(glm::mat3(camera.GetLookAtMatrix()));
+                glm::mat4 view = glm::mat4(glm::mat3(camera.GetViewMatrix()));
         glm::mat4 projection = camera.GetProjectionMatrix(45.0f, 0.1f, 100.0f);
         glUniformMatrix4fv(glGetUniformLocation(skyShader.ID, "view"), 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(glGetUniformLocation(skyShader.ID, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
@@ -71,8 +69,7 @@ public:
         glBindVertexArray(VAO);
         glDrawArrays(GL_TRIANGLES, 0, 36);
         glBindVertexArray(0);
-        // Возвращаем стандартную проверку глубины
-        glDepthFunc(GL_LESS);
+                glDepthFunc(GL_LESS);
     }
 };
 #endif

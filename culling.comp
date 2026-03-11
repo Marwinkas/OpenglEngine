@@ -1,11 +1,8 @@
 ﻿#version 430 core
-
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
-
 struct BoundingSphere {
     vec4 posAndRadius; 
 };
-
 struct DrawCommand {
     uint count;         
     uint instanceCount; 
@@ -13,57 +10,35 @@ struct DrawCommand {
     uint baseVertex;    
     uint baseInstance;  
 };
-
-// --- НОВОЕ: Данные об уровнях детализации ---
 struct LODInfo {
     uint count;
     uint firstIndex;
 };
-
 layout(std430, binding = 0) readonly buffer ObjectBuffer { BoundingSphere objects[]; };
 layout(std430, binding = 1) buffer CommandBuffer { DrawCommand commands[]; };
-
 uniform vec4 frustumPlanes[6]; 
 uniform uint objectCount;      
-
 uniform mat4 viewProjection; 
 uniform sampler2D hiZTexture; 
 uniform vec2 screenSize;      
 uniform bool isShadowPass;
-
-// --- НОВЫЕ UNIFORMS ДЛЯ LOD ---
-uniform vec3 camPos;           // Где сейчас находится Лёша (камера)
-uniform float lodDistances[2];  // Пороги: [0] - для Mid-Poly, [1] - для Low-Poly
-uniform LODInfo meshLODs[3];   // Параметры индексов для 3 уровней меша
-
+uniform vec3 camPos;           uniform float lodDistances[2];  uniform LODInfo meshLODs[3];   
 void main() {
     uint idx = gl_GlobalInvocationID.x;
     if (idx >= objectCount) return;
-
     vec3 pos = objects[idx].posAndRadius.xyz;
     float radius = objects[idx].posAndRadius.w;
     bool isVisible = true;
-
-    // 1. Считаем расстояние от камеры до объекта
-    float dist = distance(pos, camPos);
-
-    // ==========================================
-    // 1. ПРОВЕРКА ЭКРАНА (Frustum Culling)
-    // ==========================================
-    for (int i = 0; i < 6; i++) {
+        float dist = distance(pos, camPos);
+                for (int i = 0; i < 6; i++) {
         if (dot(frustumPlanes[i].xyz, pos) + frustumPlanes[i].w < -radius) {
             isVisible = false;
             break; 
         }
     }
-
-    // ==========================================
-    // 2. ПРОВЕРКА ПЕРЕКРЫТИЯ (Occlusion Culling)
-    // ==========================================
-    if (isVisible && !isShadowPass) {
+                if (isVisible && !isShadowPass) {
         vec3 aabbMin = pos - vec3(radius);
         vec3 aabbMax = pos + vec3(radius);
-
         vec4 corners[8] = {
             vec4(aabbMin.x, aabbMin.y, aabbMin.z, 1.0),
             vec4(aabbMin.x, aabbMin.y, aabbMax.z, 1.0),
@@ -74,12 +49,10 @@ void main() {
             vec4(aabbMax.x, aabbMax.y, aabbMin.z, 1.0),
             vec4(aabbMax.x, aabbMax.y, aabbMax.z, 1.0)
         };
-
         vec2 minXY = vec2(1.0);
         vec2 maxXY = vec2(0.0);
         float minZ = 1.0; 
         bool behindNearPlane = false;
-
         for(int i = 0; i < 8; i++) {
             vec4 clip = viewProjection * corners[i];
             if (clip.w <= 0.0) { behindNearPlane = true; break; }
@@ -90,50 +63,35 @@ void main() {
             maxXY = max(maxXY, clip.xy);
             minZ = min(minZ, clip.z);
         }
-
         if (!behindNearPlane) {
             minXY = clamp(minXY, 0.0, 1.0);
             maxXY = clamp(maxXY, 0.0, 1.0);
             vec2 size = (maxXY - minXY) * screenSize;
             float mip = ceil(log2(max(size.x, size.y)));
-
             float depth1 = textureLod(hiZTexture, minXY, mip).r;
             float depth2 = textureLod(hiZTexture, vec2(maxXY.x, minXY.y), mip).r;
             float depth3 = textureLod(hiZTexture, vec2(minXY.x, maxXY.y), mip).r;
             float depth4 = textureLod(hiZTexture, maxXY, mip).r;
-
             float maxWallDepth = max(max(depth1, depth2), max(depth3, depth4));
-
             if (minZ > maxWallDepth) {
                 isVisible = false;
             }
         }
     }
-
-    // ==========================================
-    // 3. ПРИМЕНЕНИЕ РЕЗУЛЬТАТА И ВЫБОР LOD
-    // ==========================================
-    if (isVisible) {
+                if (isVisible) {
         commands[idx].instanceCount = 1;
-
-        // ВЫБОР УРОВНЯ ДЕТАЛИЗАЦИИ
-        if (isShadowPass) {
-            // Для теней обычно берем самый плохой LOD (LOD 2),
-            // потому что в тенях детали не так важны, а ФПС беречь надо!
-            commands[idx].count = meshLODs[2].count;
+                if (isShadowPass) {
+                                    commands[idx].count = meshLODs[2].count;
             commands[idx].firstIndex = meshLODs[2].firstIndex;
         } else {
             if (dist < lodDistances[0]) {
-                // LOD 0: Самый красивый меш (близко)
-                commands[idx].count = meshLODs[0].count;
+                                commands[idx].count = meshLODs[0].count;
                 commands[idx].firstIndex = meshLODs[0].firstIndex;
             } else if (dist < lodDistances[1]) {
-                // LOD 1: Среднее качество
-                commands[idx].count = meshLODs[1].count;
+                                commands[idx].count = meshLODs[1].count;
                 commands[idx].firstIndex = meshLODs[1].firstIndex;
             } else {
-                // LOD 2: Далеко - рисуем "коробку"
-                commands[idx].count = meshLODs[2].count;
+                                commands[idx].count = meshLODs[2].count;
                 commands[idx].firstIndex = meshLODs[2].firstIndex;
             }
         }
