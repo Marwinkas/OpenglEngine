@@ -1,7 +1,5 @@
 ﻿#version 330 core
 layout (location = 0) out vec4 FragColor;
-layout (location = 1) out vec3 NormalColor;
-layout (location = 2) out vec3 PositionColor;
 in vec3 TexCoords;
 uniform vec3 sunDir;
 vec3 skyColorTop = vec3(0.15, 0.45, 0.85);
@@ -39,6 +37,4 @@ void main() {
     float starIntensity = step(0.998, starVal); 
     vec3 stars = vec3(starIntensity) * (1.0 * (1.0 - dayIntensity));
         FragColor = vec4(skyGradient + corona + sunDisk + moonFinal + stars, 1.0);
-    NormalColor = vec3(0.0);
-    PositionColor = vec3(0.0);
 }

@@ -30,7 +30,7 @@ public:
 
         return path;
     }
-    DefferedShader() : Shader("deferred.vert", "deferred.frag") {
+    DefferedShader() : Shader("lighting.comp") {
         Init();
         // Грузим синий шум. Файл должен лежать в папке с ресурсами.
         std::string projectFolder = getExecutablePathss() + "/resources/blue_noise.png";

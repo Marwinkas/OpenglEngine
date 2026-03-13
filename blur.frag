@@ -3,8 +3,9 @@
 out vec4 FragColor;
 in vec2 texCoords;
 uniform sampler2D screenTexture;  
-uniform sampler2D ssgiTexture;    uniform sampler2D normalTexture;
-uniform sampler2D positionTexture;
+uniform sampler2D ssgiTexture;    
+uniform sampler2D normalTexture;
+uniform sampler2D depthTexture;
 uniform sampler2D ssaoTexture;    
 uniform sampler2D bloomTexture;
 uniform bool enableFog;
@@ -61,7 +62,13 @@ uniform int contactShadowSteps;
 uniform mat4 projectionMatrix;
 uniform sampler2D hiZTexture;
 uniform int hiZMipCount;
-
+uniform mat4 invViewProj;
+vec3 ReconstructWorldPos(vec2 uv) {
+    float depth = texture(depthTexture, uv).r;
+    vec4 ndc = vec4(uv.x * 2.0 - 1.0, uv.y * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+    vec4 worldPos = invViewProj * ndc;
+    return worldPos.xyz / worldPos.w;
+}
 vec2 worldPosToUV(vec3 worldPos) {
     vec4 projected = projectionMatrix * vec4(worldPos, 1.0);
     vec3 ndc = projected.xyz / projected.w;
@@ -75,7 +82,6 @@ float worldToNDCDepth(vec3 worldPos) {
 float CalculateContactShadow(vec3 worldPos, vec3 worldNormal) {
     if (!enableContactShadows) return 1.0;
 
-    // 1. ПЛАВНОЕ ИСЧЕЗНОВЕНИЕ ВДАЛИ (чтобы не маршить лучи там, где тени не видно)
     float distToCam = distance(camPos, worldPos);
     float maxVisibleDist = 30.0; 
     float fadeStart = 20.0;      
@@ -86,8 +92,6 @@ float CalculateContactShadow(vec3 worldPos, vec3 worldNormal) {
     vec3 rayDir = normalize(-sunDirFog); 
     float dither = texture(noiseTexture, gl_FragCoord.xy / 256.0).r;
     
-    // 2. ДИНАМИЧЕСКИЙ ОТСТУП (Магия исправления багов каждые пару метров)
-    // Чем дальше камера, тем сильнее выталкиваем луч из геометрии
     float bias = 0.02 + (distToCam * 0.005); 
     vec3 rayOrigin = worldPos + worldNormal * bias;
     
@@ -96,10 +100,7 @@ float CalculateContactShadow(vec3 worldPos, vec3 worldNormal) {
     
     int currentMip = 0;
     int maxSteps = contactShadowSteps; 
-
     float shadowIntensity = 1.0; 
-
-    // 3. Динамическая толщина объекта (чтобы луч не пролетал насквозь вдалеке)
     float dynamicThickness = contactShadowThickness * (1.0 + distToCam * 0.05);
 
     for (int i = 0; i < maxSteps; i++) {
@@ -113,10 +114,9 @@ float CalculateContactShadow(vec3 worldPos, vec3 worldNormal) {
 
         if (rayDepth > hiZDepth) {
             if (currentMip == 0) {
-                vec3 hitWorldPos = texture(positionTexture, sampleUV).rgb;
+                vec3 hitWorldPos = ReconstructWorldPos(sampleUV); // <--- ИЗМЕНЕНО
                 float actualDist = distance(hitWorldPos, sampleWorldPos);
                 
-                // Проверяем с динамической толщиной!
                 if (actualDist < dynamicThickness) {
                     shadowIntensity = clamp(currentT / maxDist, 0.0, 1.0);
                     break;
@@ -129,12 +129,11 @@ float CalculateContactShadow(vec3 worldPos, vec3 worldNormal) {
             currentT += (maxDist / float(maxSteps)) * (1.0 + float(currentMip));
             if (currentMip < hiZMipCount - 2) currentMip++;
         }
-
         if (currentT > maxDist) break;
     }
-
     return mix(1.0, shadowIntensity, fadeFactor);
 }
+
 
 
 float random(vec2 uv) {
@@ -142,7 +141,7 @@ float random(vec2 uv) {
 }
 vec3 ACESFilm(vec3 x) {
     float a = 2.51; float b = 0.03; float c = 2.43; float d = 0.59; float e = 0.14;
-    return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
+    return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0); // ТУТ БЫЛИ ОШИБКИ В ЗНАКАХ
 }
 vec3 KelvinToRGB(float temp) {
     if (temp < 1000.0) temp = 6500.0; 
@@ -167,19 +166,22 @@ vec3 sampleChromatic(sampler2D tex, vec2 uv) {
 }
 vec3 getSmoothGI(vec2 uv) {
     vec2 texelSize = 1.0 / textureSize(ssgiTexture, 0);
-    vec3 centerPos = texture(positionTexture, uv).rgb;
+    vec3 centerPos = ReconstructWorldPos(uv); // <--- ИЗМЕНЕНО
     vec3 centerNorm = normalize(texture(normalTexture, uv).rgb);
-    if (length(centerPos) < 0.1) return vec3(0.0);
+    
+    float depth = texture(depthTexture, uv).r;
+    if (depth >= 0.9999) return vec3(0.0); // Проверка на небо через глубину
+    
     vec3 gi = vec3(0.0);
     float totalW = 0.0;
-        for(int x = -2; x <= 2; ++x) {
+    for(int x = -2; x <= 2; ++x) {
         for(int y = -2; y <= 2; ++y) {
             vec2 offset = vec2(x, y) * texelSize;
             vec2 suv = clamp(uv + offset, 0.001, 0.999);
-            vec3 sPos = texture(positionTexture, suv).rgb;
+            vec3 sPos = ReconstructWorldPos(suv); // <--- ИЗМЕНЕНО
             vec3 sNorm = normalize(texture(normalTexture, suv).rgb);
             vec3 sGI = texture(ssgiTexture, suv).rgb;
-                        float wPos = exp(-distance(centerPos, sPos) * 5.0); 
+            float wPos = exp(-distance(centerPos, sPos) * 5.0); 
             float wNorm = pow(max(dot(centerNorm, sNorm), 0.0), 8.0);
             float w = wPos * wNorm;
             gi += sGI * w;
@@ -188,29 +190,30 @@ vec3 getSmoothGI(vec2 uv) {
     }
     return gi / max(totalW, 0.0001);
 }
+
 vec3 getFullLitColor(vec2 uv) {
     vec3 direct = sampleChromatic(screenTexture, uv);
-    vec3 worldPos = texture(positionTexture, uv).rgb;
+    vec3 worldPos = ReconstructWorldPos(uv); // <--- ИЗМЕНЕНО
     vec3 worldNormal = texture(normalTexture, uv).rgb;
     
-    if (length(worldPos) < 0.1) return direct; // Пропускаем небо
+    float depth = texture(depthTexture, uv).r;
+    if (depth >= 0.9999) return direct; // Проверка на небо через глубину
 
     vec3 indirect = getSmoothGI(uv); 
     float ssao = texture(ssaoTexture, uv).r;
 
-    // ПРИМЕНЯЕМ CONTACT SHADOWS
     float contactShadow = CalculateContactShadow(worldPos, worldNormal);
-    
-    // Мы умножаем на это значение, чтобы "придавить" свет в местах контакта
     return (direct * contactShadow + indirect) * ssao; 
 }
 void main() {
-    vec3 centerPos = texture(positionTexture, texCoords).rgb;
-    bool isSky = length(centerPos) < 0.01;
+    float depth = texture(depthTexture, texCoords).r;
+    bool isSky = (depth >= 0.9999);
+    
+    vec3 centerPos = ReconstructWorldPos(texCoords); // Получаем позицию
     vec3 finalSceneColor = vec3(0.0);
-    finalSceneColor = texture(screenTexture, texCoords).rgb;
-    FragColor = vec4(finalSceneColor, 1.0);
-    return;
+
+    // УБРАЛИ ЗЛОСЧАСТНЫЙ RETURN!
+    
     if (isSky) {
         finalSceneColor = texture(screenTexture, texCoords).rgb;
     } else {

@@ -138,21 +138,13 @@ void Render::RebuildBatches(entt::registry& registry) {
 		glGenFramebuffers(1, &gBufferFBO);
 		glBindFramebuffer(GL_FRAMEBUFFER, gBufferFBO);
 
-		// 1. Позиция (RGB) + Metallic (A) - 16-битный float для точности координат
-		glGenTextures(1, &gPositionMetallic);
-		glBindTexture(GL_TEXTURE_2D, gPositionMetallic);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gPositionMetallic, 0);
-
 		// 2. Нормаль (RGB) + Roughness (A) - 16-битный float для точных векторов
-		glGenTextures(1, &gNormalRoughness);
-		glBindTexture(GL_TEXTURE_2D, gNormalRoughness);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glGenTextures(1, &gNormalRoughness);
+        glBindTexture(GL_TEXTURE_2D, gNormalRoughness);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gNormalRoughness, 0);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gNormalRoughness, 0);
 
 		// 3. Цвет (RGB) + AO (A) - Обычный 8-битный формат, тут float не нужен
 		glGenTextures(1, &gAlbedoAO);
@@ -160,21 +152,36 @@ void Render::RebuildBatches(entt::registry& registry) {
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gAlbedoAO, 0);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gAlbedoAO, 0);
 
 		// Указываем OpenGL, что рисуем в 3 текстуры одновременно
-		GLuint attachments[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
-		glDrawBuffers(3, attachments);
+		GLuint attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+		glDrawBuffers(2, attachments);
 
 		// Буфер глубины (Z-Buffer)
-		glGenRenderbuffers(1, &rboDepth);
-		glBindRenderbuffer(GL_RENDERBUFFER, rboDepth);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
-		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepth);
+        glGenTextures(1, &gDepth); // Не забудь добавить GLuint gDepth; в Render.h!
+        glBindTexture(GL_TEXTURE_2D, gDepth);
+        // Используем 32-битный float для идеальной точности
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, gDepth, 0);
 
-		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-			std::cout << "G-Buffer FBO Error!" << std::endl;
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+            std::cout << "G-Buffer FBO Error!" << std::endl;
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+        glGenTextures(1, &hdrOutputTexture);
+        glBindTexture(GL_TEXTURE_2D, hdrOutputTexture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        glGenFramebuffers(1, &hdrFBO);
+        glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, gDepth, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, hdrOutputTexture, 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	}
 	void Render::Draw(entt::registry& registry, LitShader& geometryShader, ShadowShader& shadowshader, PostProcessingShader& postprocessingshader, Window& window, Camera& camera, double crntTime, UI& ui, CullingShader& cullingshader, DefferedShader& defferedShader) {
 		ZoneScoped;
@@ -217,7 +224,7 @@ void Render::RebuildBatches(entt::registry& registry) {
 		glDisable(GL_CULL_FACE);
 		
 		sky.Draw(camera, sunDir);
-		postprocessingshader.Update(window, crntTime, camera, ui, sunDir, uboLights.ID, shadowshader);
+		postprocessingshader.Update(window, crntTime, camera, ui, sunDir, uboLights.ID, shadowshader, hdrOutputTexture,gDepth,gNormalRoughness);
 		FrameMark;
 
 		
@@ -567,16 +574,16 @@ void Render::RebuildBatches(entt::registry& registry) {
     }
 
 
-    void Render::RenderMainPass(Camera& camera, Window& window, std::map<Mesh*, std::vector<RenderInstance>>& mainBatches, entt::registry& registry, std::vector<glm::mat4>& sunMatrices, LitShader& geometryShader, DefferedShader& deferredShader, ShadowShader& shadowshader, CullingShader& cullingshader, PostProcessingShader& ppShader) {
+    void Render::RenderMainPass(Camera& camera, Window& window, std::map<Mesh*, std::vector<RenderInstance>>& mainBatches, entt::registry& registry, std::vector<glm::mat4>& sunMatrices, LitShader& geometryShader, DefferedShader& deferredComputeShader, ShadowShader& shadowshader, CullingShader& cullingshader, PostProcessingShader& ppShader) {
         GlobalGPUCulling(0, totalMainInstances, camera.GetViewProjectionMatrix(), camera.Position, false, cullingshader, window, ppShader.hiZTexture);
 
         glBindFramebuffer(GL_FRAMEBUFFER, gBufferFBO);
         glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        // --- ПРИВЯЗЫВАЕМ ГЛОБАЛЬНЫЕ БУФЕРЫ ДЛЯ ОТРИСОВКИ ГЕОМЕТРИИ ---
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 10, globalObjectBuffer.ID); // Объекты (binding = 10)
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, materialBuffer.ID);      // Материалы (binding = 2)
-        // -------------------------------------------------------------
+        glEnable(GL_DEPTH_TEST);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 10, globalObjectBuffer.ID);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, materialBuffer.ID);
+
         geometryShader.Activate();
         geometryShader.Set(geometryShader.loc.camPos, camera.Position);
         geometryShader.Set(geometryShader.loc.camMatrix, camera.GetViewProjectionMatrix());
@@ -585,7 +592,6 @@ void Render::RebuildBatches(entt::registry& registry) {
         for (auto& draw : mainDraws) {
             draw.mesh->VAO.Bind();
             glBindBuffer(GL_DRAW_INDIRECT_BUFFER, globalCommandBuffer.ID);
-            // Сдвигаемся на нужную команду с помощью commandOffset
             glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, (void*)(draw.commandOffset * sizeof(DrawCommand)), draw.instanceCount, sizeof(DrawCommand));
         }
 
@@ -595,32 +601,54 @@ void Render::RebuildBatches(entt::registry& registry) {
         glBlitFramebuffer(0, 0, window.width, window.height, 0, 0, window.width, window.height, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
         glDisable(GL_DEPTH_TEST);
 
-        // ФАЗА 2: LIGHTING PASS
-        ppShader.Bind(window);
-        glClear(GL_COLOR_BUFFER_BIT);
+        // ФАЗА 2: COMPUTE DEFERRED LIGHTING
+        deferredComputeShader.Activate();
 
-        deferredShader.Activate();
-        deferredShader.Set(deferredShader.loc.camPos, camera.Position);
-        deferredShader.Set(deferredShader.loc.view, camera.GetViewMatrix());
-        deferredShader.Set(deferredShader.loc.screenSize, (float)window.width, (float)window.height);
+        deferredComputeShader.Set(deferredComputeShader.loc.camPos, camera.Position);
+        deferredComputeShader.Set(deferredComputeShader.loc.view, camera.GetViewMatrix());
 
-        deferredShader.Set(deferredShader.loc.sunLightSpaceMatrices, sunMatrices);
-        deferredShader.Set(deferredShader.loc.cascadeSplits, shadowshader.cascadeSplits);
-        deferredShader.Set(deferredShader.loc.shadowAtlas, shadowshader.shadowAtlas, 12);
-        deferredShader.Set(deferredShader.loc.sunShadowMap, shadowshader.sunShadowArray, 13, GL_TEXTURE_2D_ARRAY);
-        deferredShader.Set(deferredShader.loc.noiseTexture, deferredShader.blueNoiseTexture, 0);
+        // ПЕРЕДАЕМ РАЗМЕР ЭКРАНА ОБЯЗАТЕЛЬНО (иначе UV = NaN)
+        glUniform2f(glGetUniformLocation(deferredComputeShader.ID, "screenSize"), (float)window.width, (float)window.height);
 
-        glActiveTexture(GL_TEXTURE14);
-        glBindTexture(GL_TEXTURE_2D, gPositionMetallic);
-        deferredShader.Set(deferredShader.loc.gPositionMetallic, 14);
+        deferredComputeShader.Set(deferredComputeShader.loc.sunLightSpaceMatrices, sunMatrices);
+        deferredComputeShader.Set(deferredComputeShader.loc.cascadeSplits, shadowshader.cascadeSplits);
+
+        deferredComputeShader.Set(deferredComputeShader.loc.shadowAtlas, shadowshader.shadowAtlas, 12);
+        deferredComputeShader.Set(deferredComputeShader.loc.sunShadowMap, shadowshader.sunShadowArray, 13, GL_TEXTURE_2D_ARRAY);
+        deferredComputeShader.Set(deferredComputeShader.loc.noiseTexture, deferredComputeShader.blueNoiseTexture, 0);
+
+        glm::mat4 invViewProj = glm::inverse(camera.GetViewProjectionMatrix());
+        glUniformMatrix4fv(glGetUniformLocation(deferredComputeShader.ID, "invViewProj"), 1, GL_FALSE, glm::value_ptr(invViewProj));
+
+        // ВНИМАНИЕ: gPositionMetallic БОЛЬШЕ НЕТ! 
+        // Я закомментировал этот кусок, он тебе больше не нужен:
+        // glActiveTexture(GL_TEXTURE14);
+        // glBindTexture(GL_TEXTURE_2D, gPositionMetallic);
+        // deferredComputeShader.Set(deferredComputeShader.loc.gPositionMetallic, 14);
 
         glActiveTexture(GL_TEXTURE15);
         glBindTexture(GL_TEXTURE_2D, gNormalRoughness);
-        deferredShader.Set(deferredShader.loc.gNormalRoughness, 15);
+        deferredComputeShader.Set(deferredComputeShader.loc.gNormalRoughness, 15);
 
         glActiveTexture(GL_TEXTURE16);
         glBindTexture(GL_TEXTURE_2D, gAlbedoAO);
-        deferredShader.Set(deferredShader.loc.gAlbedoAO, 16);
+        deferredComputeShader.Set(deferredComputeShader.loc.gAlbedoAO, 16);
 
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        glActiveTexture(GL_TEXTURE17);
+        glBindTexture(GL_TEXTURE_2D, gDepth);
+        glUniform1i(glGetUniformLocation(deferredComputeShader.ID, "gDepth"), 17);
+
+        // ПРИВЯЗЫВАЕМ ТЕКСТУРУ ДЛЯ ЗАПИСИ
+        glBindImageTexture(0, hdrOutputTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+
+        GLuint numGroupsX = (window.width + 15) / 16;
+        GLuint numGroupsY = (window.height + 15) / 16;
+        glDispatchCompute(numGroupsX, numGroupsY, 1);
+
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+
+        glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
+        glEnable(GL_DEPTH_TEST);
+    
     }

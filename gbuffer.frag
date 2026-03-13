@@ -1,9 +1,8 @@
 ﻿#version 430 core
 #extension GL_ARB_bindless_texture : require 
 
-layout (location = 0) out vec4 gPositionMetallic;
-layout (location = 1) out vec4 gNormalRoughness;
-layout (location = 2) out vec4 gAlbedoAO;
+layout (location = 0) out vec4 gNormalRoughness;
+layout (location = 1) out vec4 gAlbedoMetallic;
 
 in vec3 crntPos;
 in vec3 Normal;
@@ -140,8 +139,6 @@ void main() {
         }
     }
 
-    // Сохраняем в G-Buffer
-    gPositionMetallic = vec4(crntPos, metallic);
     gNormalRoughness = vec4(worldNormal, roughness);
-    gAlbedoAO = vec4(albedo, ao);
+    gAlbedoMetallic = vec4(albedo, metallic); // Записываем Metallic!
 }

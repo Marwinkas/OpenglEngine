@@ -245,6 +245,7 @@
     <None Include="final.frag" />
     <None Include="gbuffer.frag" />
     <None Include="hiz.comp" />
+    <None Include="lighting.comp" />
     <None Include="light_culling.comp" />
     <None Include="rc_collapse.comp" />
     <None Include="rc_raycast.comp" />

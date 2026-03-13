@@ -56,15 +56,16 @@ public:
 	GLBuffer atomicCounterBuffer;
 	GLBuffer uboLights;
 	GLBuffer meshInfoBuffer;
+	GLuint hdrOutputTexture;
 	SkyAtmosphere sky; // Твое небо
 	glm::vec3 sunDir = glm::vec3(0.0f, -1.0f, 0.0f);
-
+	GLuint gDepth;
 	GLuint gBufferFBO;
 	GLuint gPositionMetallic;
 	GLuint gNormalRoughness;
 	GLuint gAlbedoAO;
 	GLuint rboDepth;
-
+	GLuint hdrFBO;
 	// Метод инициализации
 	void InitGBuffer(int width, int height);
 

@@ -328,5 +328,8 @@
     <None Include="deferred.frag">
       <Filter>Resource Files\Shaders\graphic</Filter>
     </None>
+    <None Include="lighting.comp">
+      <Filter>Resource Files\Shaders\graphic</Filter>
+    </None>
   </ItemGroup>
 </Project>

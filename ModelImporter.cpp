@@ -154,25 +154,47 @@ bool ModelImporter::ImportModel(const std::string& srcPath, const std::string& d
         std::vector<std::vector<uint32_t>> lods;
         lods.push_back(indices); // LOD 0 (Оригинал)
 
-        if (vertices.size() > 0 && indices.size() >= 30) {
-            float thresholds[2] = { 0.5f, 0.1f };
+        // Генерируем ЛОДы только если есть что упрощать (минимум 300 треугольников)
+        if (vertices.size() > 0 && indices.size() >= 300) {
+            
+            // Настройки агрессивности упрощения (Например: 50% полигонов для LOD1, 20% для LOD2)
+            float thresholds[2] = { 0.5f, 0.2f }; 
+            
             for (int i = 0; i < 2; i++) {
-                uint32_t targetCount = (uint32_t)(lods[0].size() * thresholds[i]);
-                if (targetCount < 3) break;
+                size_t target_index_count = size_t(lods[0].size() * thresholds[i]);
+                
+                // Защита: не упрощаем модель до состояния треугольника
+                if (target_index_count < 30) break;
 
-                std::vector<uint32_t> lodIndices(lods.back().size());
-                size_t newCount = 0;
+                std::vector<uint32_t> lodIndices(lods[0].size());
+                
+                // ВАЖНО: Используем ТОЛЬКО meshopt_simplify (без Sloppy). 
+                // Sloppy работает быстрее, но иногда ломает топологию и UV-развертку, из-за чего и появляется "радуга"!
+                // Параметр 0.05f - это допустимая ошибка (target_error). Чем меньше, тем точнее модель сохраняет форму.
+                float lod_error = 0.0f;
+                size_t newCount = meshopt_simplify(
+                    lodIndices.data(),
+                    lods[0].data(),
+                    lods[0].size(),
+                    &vertices[0].position.x,
+                    vertices.size(),
+                    sizeof(Vertex),
+                    target_index_count,
+                    0.05f
+                );
 
-                if (i == 0) {
-                    newCount = meshopt_simplify(lodIndices.data(), lods.back().data(), lods.back().size(), &vertices[0].position.x, vertices.size(), sizeof(Vertex), targetCount, 0.05f);
-                }
-                else {
-                    newCount = meshopt_simplifySloppy(lodIndices.data(), lods.back().data(), lods.back().size(), &vertices[0].position.x, vertices.size(), sizeof(Vertex), targetCount, 0.1f);
-                }
-
-                if (newCount == 0) break;
+                if (newCount == 0) break; // Упрощение не удалось
+                
                 lodIndices.resize(newCount);
-                lods.push_back(lodIndices);
+                
+                // Защита от дубликатов ЛОДов (если упрощение не дало сильного эффекта)
+                if (newCount < lods.back().size()) {
+                    // Обязательно оптимизируем новые индексы для скорости!
+                    meshopt_optimizeVertexCache(lodIndices.data(), lodIndices.data(), lodIndices.size(), vertices.size());
+                    lods.push_back(lodIndices);
+                } else {
+                    break; 
+                }
             }
         }
 
@@ -184,7 +206,7 @@ bool ModelImporter::ImportModel(const std::string& srcPath, const std::string& d
         meshHeader.aabbMax = aabbMax;
         meshHeader.boundingRadius = glm::distance(aabbMin, aabbMax) * 0.5f;
         meshHeader.lodCount = lods.size();
-        meshHeader.indexType = (vertices.size() <= 65535) ? 0 : 1; // 0 = 16-bit, 1 = 32-bit
+        meshHeader.indexType = 1;
 
         outFile.write(reinterpret_cast<const char*>(&meshHeader), sizeof(BHMeshHeader));
 
@@ -199,16 +221,7 @@ bool ModelImporter::ImportModel(const std::string& srcPath, const std::string& d
             lodHeader.indexCount = lodIndices.size();
             outFile.write(reinterpret_cast<const char*>(&lodHeader), sizeof(BHLodHeader));
 
-            if (meshHeader.indexType == 0) {
-                // Жмем индексы в 16 бит для экономии!
-                std::vector<uint16_t> indices16(lodIndices.size());
-                for (size_t i = 0; i < lodIndices.size(); ++i) indices16[i] = (uint16_t)lodIndices[i];
-                outFile.write(reinterpret_cast<const char*>(indices16.data()), indices16.size() * sizeof(uint16_t));
-            }
-            else {
-                // Оставляем 32 бита
-                outFile.write(reinterpret_cast<const char*>(lodIndices.data()), lodIndices.size() * sizeof(uint32_t));
-            }
+            outFile.write(reinterpret_cast<const char*>(lodIndices.data()), lodIndices.size() * sizeof(uint32_t));
         }
     }
 
