@@ -26,7 +26,16 @@ void Camera::Matrix(Shader& shader, const char* uniform)
     // Передаем новую правильную комбинированную матрицу
     glUniformMatrix4fv(glGetUniformLocation(shader.ID, uniform), 1, GL_FALSE, glm::value_ptr(viewProjectionMatrix));
 }
-
+bool Camera::IsSphereInFrustum(const glm::vec4* planes, const glm::vec3& center, float radius) {
+    // Просто пробегаемся по готовым плоскостям
+    for (int i = 0; i < 6; i++) {
+        // Если центр сферы находится ЗА плоскостью дальше, чем её радиус - она невидима
+        if (glm::dot(glm::vec3(planes[i]), center) + planes[i].w < -radius) {
+            return false;
+        }
+    }
+    return true;
+}
 // --- СОЗДАНИЕ/УДАЛЕНИЕ ФИЗИКИ КАМЕРЫ ---
 void Camera::TogglePlayMode(PhysicsEngine& physics) {
     isPlayMode = !isPlayMode;

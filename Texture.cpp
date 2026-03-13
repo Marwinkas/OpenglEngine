@@ -1,6 +1,7 @@
 ﻿#include"Texture.h"
 #include <stdexcept>
 #include <stdexcept>
+#include <TextureImporter.h>
 #define GL_COMPRESSED_RGB_S3TC_DXT1_EXT                   0x83F0
 #define GL_COMPRESSED_RGBA_S3TC_DXT1_EXT                  0x83F1
 #define GL_COMPRESSED_RGBA_S3TC_DXT3_EXT                  0x83F2
@@ -9,6 +10,14 @@
 #define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT            0x8C4D
 #define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT            0x8C4E
 #define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT            0x8C4F
+
+#ifndef GL_COMPRESSED_RGBA_S3TC_DXT1_EXT
+#define GL_COMPRESSED_RGBA_S3TC_DXT1_EXT 0x83F1
+#define GL_COMPRESSED_RGBA_S3TC_DXT5_EXT 0x83F3
+#define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT 0x8C4D
+#define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT 0x8C4F
+#endif
+
 Texture::Texture()
 {
 }
@@ -46,6 +55,121 @@ Texture::Texture(int width, int height, const char* texType, GLuint slot)
 Texture::Texture(const char* image, const char* texType, GLuint slot, int typemap)
 {
     type = texType;
+    unit = slot;
+
+
+    std::string path(image);
+
+    // --- ЗАГРУЗКА НАШЕГО БИНАРНОГО ФОРМАТА .BHTEX ---
+    if (path.ends_with(".bhtex")) {
+        std::ifstream file(path, std::ios::binary);
+        if (!file.is_open()) {
+            std::cerr << "[ERROR] Cannot open .bhtex: " << path << std::endl;
+            return;
+        }
+
+        BHTexHeader header;
+        file.read(reinterpret_cast<char*>(&header), sizeof(BHTexHeader));
+
+        // ========================================================
+        // 1. ЗАЩИТА ОТ СТАРЫХ/БИТЫХ ФАЙЛОВ
+        // ========================================================
+        std::cout << "[DEBUG] BHTex: W=" << header.width << " H=" << header.height
+            << " Mips=" << header.mipCount << " Format=" << header.format << std::endl;
+
+        if (header.width == 0 || header.height == 0 || header.mipCount > 20) {
+            std::cerr << "[ERROR] Битый или старый файл .bhtex! Удалите его: " << path << std::endl;
+            file.close();
+            return;
+        }
+
+        // Высчитываем физически возможный максимум мипмапов для этого разрешения
+        int maxPossibleMips = std::floor(std::log2(std::max(header.width, header.height))) + 1;
+        if (header.mipCount > maxPossibleMips) {
+            std::cout << "[WARNING] Слишком много мипмапов в файле! Обрезаем до " << maxPossibleMips << std::endl;
+            header.mipCount = maxPossibleMips;
+        }
+
+        glGenTextures(1, &ID);
+        glActiveTexture(GL_TEXTURE0 + slot);
+        glBindTexture(GL_TEXTURE_2D, ID);
+
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+        // Применяем настройки
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, header.wrapS);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, header.wrapT);
+
+        if (header.mipCount <= 1 && (header.minFilter == GL_LINEAR_MIPMAP_LINEAR || header.minFilter == GL_NEAREST_MIPMAP_NEAREST)) {
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        }
+        else {
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, header.minFilter);
+        }
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, header.magFilter);
+
+        if (header.maxAnisotropy > 1.0f) {
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, header.maxAnisotropy);
+        }
+
+        GLenum glFormat;
+        if (header.format == 1) {
+            glFormat = header.isSRGB ? GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT : GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
+        }
+        else {
+            glFormat = header.isSRGB ? GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT : GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
+        }
+
+        // ========================================================
+        // 2. ЖЕСТКАЯ ПРОВЕРКА ОШИБОК OPENGL
+        // ========================================================
+        while (glGetError() != GL_NO_ERROR); // Сбрасываем прошлые ошибки движка
+
+        // Выделяем хранилище
+        glTexStorage2D(GL_TEXTURE_2D, header.mipCount, glFormat, header.width, header.height);
+
+        GLenum err = glGetError();
+        if (err != GL_NO_ERROR) {
+            std::cerr << "[GL ERROR] glTexStorage2D упал с кодом: 0x" << std::hex << err << std::dec << std::endl;
+            file.close();
+            return;
+        }
+
+        int currentW = header.width;
+        int currentH = header.height;
+
+        // 4. Заливаем куски данных в готовое хранилище
+        for (uint32_t i = 0; i < header.mipCount; ++i) {
+            uint32_t dataSize;
+            file.read(reinterpret_cast<char*>(&dataSize), sizeof(uint32_t));
+
+            std::vector<char> compressedData(dataSize);
+            file.read(compressedData.data(), dataSize);
+
+            // Обрати внимание: тут SubImage!
+            glCompressedTexSubImage2D(GL_TEXTURE_2D, i, 0, 0, currentW, currentH, glFormat, dataSize, compressedData.data());
+
+            currentW = std::max(1, currentW / 2);
+            currentH = std::max(1, currentH / 2);
+        }
+
+        // 5. Получаем 64-битный указатель
+        handle = glGetTextureHandleARB(ID);
+
+        if (handle == 0) {
+            std::cerr << "[FATAL] OpenGL отказался создать Bindless Handle для " << path << "!" << std::endl;
+        }
+        else {
+            glMakeTextureHandleResidentARB(handle);
+            std::cout << "[SUCCESS] Загружен .bhtex с Handle: " << handle << std::endl;
+        }
+
+        file.close();
+        glBindTexture(GL_TEXTURE_2D, 0);
+        return;
+    }
+
     int widthImg, heightImg, numColCh;
     stbi_set_flip_vertically_on_load(false);
 
@@ -59,7 +183,7 @@ Texture::Texture(const char* image, const char* texType, GLuint slot, int typema
 
     glGenTextures(1, &ID);
     glActiveTexture(GL_TEXTURE0 + slot);
-    unit = slot;
+
     glBindTexture(GL_TEXTURE_2D, ID);
 
     // ВАЖНО: Убираем выравнивание по 4 байта (спасает от 0xC0000005 на странных размерах)

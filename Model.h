@@ -19,6 +19,8 @@ class Model
 public: 
     std::vector<Mesh> meshes;
     std::vector<std::string> loadedMaterialPaths;
+    static std::map<std::string, std::vector<Mesh>> globalMeshCache;
+    static std::map<std::string, std::vector<std::string>> globalMaterialCache;
     std::string directory;
     std::string projectRoot;
     Model(std::string const& path, std::string const& root);

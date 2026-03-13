@@ -8,7 +8,7 @@
 #include <string>
 #include <filesystem>
 #include "shaderClass.h"
-#include <stb/stb_image.h> // Убедись, что путь правильный
+#include "stb_image.h" // Убедись, что путь правильный
 #include <iostream>
 class DefferedShader : public Shader {
 public:

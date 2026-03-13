@@ -3,16 +3,28 @@
 #include<glm/glm.hpp>
 #include<glad/glad.h>
 #include<vector>
-#define MAX_BONE_INFLUENCE 4
+#include <glm/gtc/packing.hpp> // Убедись, что это подключено
+
+inline uint32_t PackNormalTo10_10_10_2(glm::vec3 normal) {
+	// ЗАЩИТА ОТ NaN: Если вектор пустой, даем ему дефолтное направление
+	if (glm::length(normal) < 0.0001f) {
+		normal = glm::vec3(0.0f, 1.0f, 0.0f);
+	}
+	else {
+		normal = glm::normalize(normal);
+	}
+
+	// Встроенный упаковщик GLM (идеально переводит в GL_INT_2_10_10_10_REV)
+	return glm::packSnorm3x10_1x2(glm::vec4(normal, 0.0f));
+}
 struct Vertex
 {
-	glm::vec3 position;
-	glm::vec3 normal;
-	glm::vec3 color;
-	glm::vec2 texUV;
-	glm::vec3 tangent;
-	glm::vec3 bitangent;
-	int m_BoneIDs[MAX_BONE_INFLUENCE]; 	float m_Weights[MAX_BONE_INFLUENCE]; };
+	glm::vec3 position = glm::vec3(0.0f);
+	uint32_t normal = 0;
+	uint32_t texUV = 0;
+	uint32_t tangent = 0;
+	uint32_t bitangent = 0;
+};
 class VBO
 {
 public:

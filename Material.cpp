@@ -16,45 +16,60 @@ std::string getExecutablePath()
 	return path;
 }
 MaterialGPUData Material::getGPUData() {
-	MaterialGPUData data;
-	data.albedoHandle = hasalbedo ? albedo.handle : 0;
-	data.normalHandle = hasnormal ? normal.handle : 0;
-	data.heightHandle = hasheight ? height.handle : 0;
-	data.metallicHandle = hasmetallic ? metallic.handle : 0;
-	data.roughnessHandle = hasroughness ? roughness.handle : 0;
-	data.aoHandle = hasao ? ao.handle : 0;
-	data.hasAlbedo = hasalbedo;
-	data.hasNormal = hasnormal;
-	data.hasHeight = hasheight;
-	data.hasMetallic = hasmetallic;
-	data.hasRoughness = hasroughness;
-	data.hasAO = hasao;
-	data.triplanarScale = 0.1f;
-	data.useTriplanar = 0;
+    MaterialGPUData data;
 
-	return data;
-}
-// Универсальный внутренний помощник для загрузки
-bool SafeLoad(std::string path, bool& flag, Texture& tex, const char* type, int slot, int format) {
-	if (path.empty() || !fs::exists(path) || fs::is_directory(path)) {
-		return false;
-	}
+    // --- ЗАЩИТА ОТ КРАША ---
+    // Передаем хэндл, только если он уже загрузился (не равен 0)
+    data.albedoHandle = (hasalbedo && albedo.handle != 0) ? albedo.handle : 0;
+    data.normalHandle = (hasnormal && normal.handle != 0) ? normal.handle : 0;
+    data.heightHandle = (hasheight && height.handle != 0) ? height.handle : 0;
+    data.metallicHandle = (hasmetallic && metallic.handle != 0) ? metallic.handle : 0;
+    data.roughnessHandle = (hasroughness && roughness.handle != 0) ? roughness.handle : 0;
+    data.aoHandle = (hasao && ao.handle != 0) ? ao.handle : 0;
 
-	if (flag) {
-		glDeleteTextures(1, &tex.ID);
-	}
+    // Шейдер будет использовать текстуру ТОЛЬКО если она уже загружена в VRAM
+    data.hasAlbedo = (hasalbedo && albedo.handle != 0) ? 1 : 0;
+    data.hasNormal = (hasnormal && normal.handle != 0) ? 1 : 0;
+    data.hasHeight = (hasheight && height.handle != 0) ? 1 : 0;
+    data.hasMetallic = (hasmetallic && metallic.handle != 0) ? 1 : 0;
+    data.hasRoughness = (hasroughness && roughness.handle != 0) ? 1 : 0;
+    data.hasAO = (hasao && ao.handle != 0) ? 1 : 0;
 
-	tex = Texture(path.c_str(), type, slot, format);
-	flag = true;
-	return true;
+    data.triplanarScale = 0.1f;
+    data.useTriplanar = 0;
+
+    return data;
 }
 
-void Material::setAlbedo(std::string path) { SafeLoad(path, hasalbedo, albedo, "diffuse", 0, 0); }
-void Material::setNormal(std::string path) { SafeLoad(path, hasnormal, normal, "normal", 1, 1); }
-void Material::setHeight(std::string path) { SafeLoad(path, hasheight, height, "height", 2, 2); }
-void Material::setMetallic(std::string path) { SafeLoad(path, hasmetallic, metallic, "metallic", 3, 1); }
-void Material::setRoughness(std::string path) { SafeLoad(path, hasroughness, roughness, "roughness", 4, 1); }
-void Material::setAO(std::string path) { SafeLoad(path, hasao, ao, "ao", 5, 1); }
-void Material::Activate(Shader& shader) {
-	glUniform1i(glGetUniformLocation(shader.ID, "materialID"), this->ID);
+// Универсальный внутренний помощник для загрузки (теперь со Стримером!)
+bool SafeLoad(std::string path, bool& flag, Texture& tex, const char* type, int slot, int format, TextureStreamer* streamer) {
+    if (path.empty() || !fs::exists(path) || fs::is_directory(path)) {
+        std::cout << "[ERROR] Текстура не найдена: " << path << std::endl;
+        return false;
+    }
+
+    if (flag && tex.handle != 0) {
+        glMakeTextureHandleNonResidentARB(tex.handle);
+        glDeleteTextures(1, &tex.ID);
+    }
+
+    if (streamer != nullptr && path.ends_with(".bhtex")) {
+        // БЕЗОПАСНАЯ ИНИЦИАЛИЗАЦИЯ (Без копирования объектов)
+        tex.ID = 0;
+        tex.handle = 0;
+        streamer->StreamTextureAsync(path, &tex);
+    }
+    else {
+        tex = Texture(path.c_str(), type, slot, format);
+    }
+
+    flag = true;
+    return true;
 }
+
+void Material::setAlbedo(std::string path, TextureStreamer* streamer) { SafeLoad(path, hasalbedo, albedo, "diffuse", 0, 0, streamer); }
+void Material::setNormal(std::string path, TextureStreamer* streamer) { SafeLoad(path, hasnormal, normal, "normal", 1, 1, streamer); }
+void Material::setHeight(std::string path, TextureStreamer* streamer) { SafeLoad(path, hasheight, height, "height", 2, 2, streamer); }
+void Material::setMetallic(std::string path, TextureStreamer* streamer) { SafeLoad(path, hasmetallic, metallic, "metallic", 3, 1, streamer); }
+void Material::setRoughness(std::string path, TextureStreamer* streamer) { SafeLoad(path, hasroughness, roughness, "roughness", 4, 1, streamer); }
+void Material::setAO(std::string path, TextureStreamer* streamer) { SafeLoad(path, hasao, ao, "ao", 5, 1, streamer); }

@@ -19,8 +19,9 @@ private:
         j["name"] = matName;
                                 j["textures"]["albedo"] = "path_to_albedo.png";         std::ofstream file(filepath);
         file << j.dump(4);     }
-    static Material* LoadMaterial(const std::string& filepath, const std::string& basePath) {
-        // 1. Проверяем кэш, чтобы не загружать один и тот же файл дважды
+    // 1. ДОБАВЛЯЕМ СТРИМЕР В АРГУМЕНТЫ (по умолчанию nullptr, чтобы старый код не сломался)
+    static Material* LoadMaterial(const std::string& filepath, const std::string& basePath, TextureStreamer* streamer = nullptr) {
+        // Проверяем кэш, чтобы не загружать один и тот же файл дважды
         if (loadedMaterials.find(filepath) != loadedMaterials.end()) {
             return loadedMaterials[filepath];
         }
@@ -39,17 +40,18 @@ private:
                 return mat;
             }
 
-            // --- Загрузка текстур с проверкой на пустоту ---
             if (j.contains("textures")) {
                 auto& tex = j["textures"];
-
-                // Лямбда-помощник, чтобы не дублировать код для каждой карты
-                auto loadIfNotEmpty = [&](const std::string& key, void (Material::* func)(std::string)) {
+                extern TextureStreamer* globalTextureStreamer;
+                // 2. ИЗМЕНЯЕМ СИГНАТУРУ ЛЯМБДЫ (добавляем TextureStreamer*)
+                auto loadIfNotEmpty = [&](const std::string& key, void (Material::* func)(std::string, TextureStreamer*)) {
                     if (tex.contains(key)) {
                         std::string path = tex[key].get<std::string>();
                         if (!path.empty()) {
                             std::string fullTexPath = basePath + "/" + path;
-                            (mat->*func)(fullTexPath);
+
+                            // 3. ВЫЗЫВАЕМ ФУНКЦИЮ И ПЕРЕДАЕМ ЕЙ СТРИМЕР!
+                            (mat->*func)(fullTexPath, globalTextureStreamer);
                         }
                     }
                     };
@@ -66,7 +68,6 @@ private:
             std::cout << "Ой, не удалось найти файл материала: " << filepath << std::endl;
         }
 
-        // Сохраняем в кэш и возвращаем
         loadedMaterials[filepath] = mat;
         return mat;
     }

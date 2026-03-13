@@ -13,12 +13,20 @@ Mesh::Mesh(std::vector <Vertex>& vertices, std::vector <GLuint>& indices)
     EBO_obj = EBO(indices);
 
     // Используем их для привязки
-    VAO.LinkAttrib(VBO_obj, 0, 3, GL_FLOAT, sizeof(Vertex), (void*)0);
-    VAO.LinkAttrib(VBO_obj, 1, 3, GL_FLOAT, sizeof(Vertex), (void*)(3 * sizeof(float)));
-    VAO.LinkAttrib(VBO_obj, 2, 3, GL_FLOAT, sizeof(Vertex), (void*)(6 * sizeof(float)));
-    VAO.LinkAttrib(VBO_obj, 3, 2, GL_FLOAT, sizeof(Vertex), (void*)(9 * sizeof(float)));
-    VAO.LinkAttrib(VBO_obj, 4, 3, GL_FLOAT, sizeof(Vertex), (void*)(11 * sizeof(float)));
-    VAO.LinkAttrib(VBO_obj, 5, 3, GL_FLOAT, sizeof(Vertex), (void*)(14 * sizeof(float)));
+// 0: Позиция - 3 компонента (float)
+    VAO.LinkAttrib(VBO_obj, 0, 3, GL_FLOAT, sizeof(Vertex), (void*)offsetof(Vertex, position), false);
+
+    // 1: Нормаль - СТРОГО 4 компонента (требование 10_10_10_2), нормализация = true!
+    VAO.LinkAttrib(VBO_obj, 1, 4, GL_INT_2_10_10_10_REV, sizeof(Vertex), (void*)offsetof(Vertex, normal), true);
+
+    // 2: UV координаты - 2 компонента (half-float)
+    VAO.LinkAttrib(VBO_obj, 2, 2, GL_HALF_FLOAT, sizeof(Vertex), (void*)offsetof(Vertex, texUV), false);
+
+    // 3: Тангенс - СТРОГО 4 компонента, нормализация = true!
+    VAO.LinkAttrib(VBO_obj, 3, 4, GL_INT_2_10_10_10_REV, sizeof(Vertex), (void*)offsetof(Vertex, tangent), true);
+
+    // 4: Битангенс - СТРОГО 4 компонента, нормализация = true!
+    VAO.LinkAttrib(VBO_obj, 4, 4, GL_INT_2_10_10_10_REV, sizeof(Vertex), (void*)offsetof(Vertex, bitangent), true);
 
     // Создаем инстанс VBO
     GLuint instanceVBO;
@@ -28,17 +36,10 @@ Mesh::Mesh(std::vector <Vertex>& vertices, std::vector <GLuint>& indices)
 
     std::size_t vec4Size = sizeof(glm::vec4);
     for (int i = 0; i < 4; i++) {
-        glEnableVertexAttribArray(6 + i);
-        glVertexAttribPointer(6 + i, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(i * vec4Size));
-        glVertexAttribDivisor(6 + i, 1);
+        glEnableVertexAttribArray(5 + i);
+        glVertexAttribPointer(5 + i, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(i * vec4Size));
+        glVertexAttribDivisor(5 + i, 1);
     }
-
-    // Снова биндим основной VBO для костей
-    VBO_obj.Bind();
-    glEnableVertexAttribArray(10);
-    glVertexAttribIPointer(10, 4, GL_INT, sizeof(Vertex), (void*)offsetof(Vertex, m_BoneIDs));
-    glEnableVertexAttribArray(11);
-    glVertexAttribPointer(11, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, m_Weights));
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 

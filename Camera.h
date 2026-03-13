@@ -48,6 +48,7 @@ public:
     Camera(int width, int height, glm::vec3 position);
     void Matrix(Shader& shader, const char* uniform);
     // 1. МАТРИЦА ПРОЕКЦИИ (Перспектива, FOV, Near/Far)
+    bool IsSphereInFrustum(const glm::vec4* planes, const glm::vec3& center, float radius);
     glm::mat4 GetProjectionMatrix(float FOVdeg, float nearPlane, float farPlane, bool applyJitter = true)
     {
         glm::mat4 proj = glm::perspective(glm::radians(FOVdeg), (float)width / (float)height, nearPlane, farPlane);

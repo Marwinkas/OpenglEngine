@@ -38,7 +38,7 @@ layout(std430, binding = 2) readonly buffer MaterialBlock {
     MaterialData materials[];
 };
 
-uniform int materialID;
+flat in uint matID;
 
 // Функция для цвета (Albedo, Metallic, Roughness)
 vec4 SampleTriplanar(sampler2D tex, vec3 p, vec3 n, float s) {
@@ -75,7 +75,7 @@ vec3 TriplanarNormal(sampler2D tex, vec3 p, vec3 n, float s) {
 }
 
 vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir) {
-    MaterialData mat = materials[materialID];
+    MaterialData mat = materials[matID];
     
     float minLayers = 8.0;
     float maxLayers = 32.0;
@@ -107,7 +107,7 @@ vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir) {
 }
 
 void main() {
-    MaterialData mat = materials[materialID];
+    MaterialData mat = materials[matID];
     
     vec3 V = normalize(camPos - crntPos);
     vec3 N = normalize(Normal);

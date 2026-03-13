@@ -1,71 +1,101 @@
 ﻿#version 430 core
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
-struct BoundingSphere {
+
+// ======================================================================
+// 1. ИСПРАВЛЕННАЯ СТРУКТУРА (Должна 1в1 совпадать с C++!)
+// ======================================================================
+struct CullingData { 
     vec4 posAndRadius; 
+    vec4 coneApexCutoff; 
+    vec4 coneAxis; 
+    vec4 padding; 
 };
-struct DrawCommand {
-    uint count;         
-    uint instanceCount; 
-    uint firstIndex;    
-    uint baseVertex;    
-    uint baseInstance;  
-};
-struct LODInfo {
-    uint count;
-    uint firstIndex;
-};
-layout(std430, binding = 0) readonly buffer ObjectBuffer { BoundingSphere objects[]; };
+
+struct DrawCommand { uint count; uint instanceCount; uint firstIndex; uint baseVertex; uint baseInstance; };
+struct MeshLODInfo { uint countLOD0, firstIndexLOD0; uint countLOD1, firstIndexLOD1; uint countLOD2, firstIndexLOD2; uint pad1, pad2; };  
+struct ObjectData { mat4 modelMatrix; uint materialID; uint meshID; uint pad1, pad2; };
+
+// БУФЕРЫ
+layout(std430, binding = 0) readonly buffer CullBuffer { CullingData cullData[]; };
 layout(std430, binding = 1) buffer CommandBuffer { DrawCommand commands[]; };
+layout(std430, binding = 7) readonly buffer MeshInfoBuffer { MeshLODInfo meshes[]; };
+layout(std430, binding = 10) readonly buffer ObjectBuffer { ObjectData objectData[]; };
+
 uniform vec4 frustumPlanes[6]; 
-uniform uint objectCount;      
+uniform uint objectCount;       
 uniform mat4 viewProjection; 
 uniform sampler2D hiZTexture; 
 uniform vec2 screenSize;      
 uniform bool isShadowPass;
-uniform vec3 camPos;           uniform float lodDistances[2];  uniform LODInfo meshLODs[3];   
+uniform vec3 camPos;           
+uniform uint bufferOffset;
+
 void main() {
-    uint idx = gl_GlobalInvocationID.x;
-    if (idx >= objectCount) return;
-    vec3 pos = objects[idx].posAndRadius.xyz;
-    float radius = objects[idx].posAndRadius.w;
+    uint localIdx = gl_GlobalInvocationID.x;
+    if (localIdx >= objectCount) return;
+    
+    uint globalIdx = localIdx + bufferOffset; 
+    
+    vec3 pos = cullData[globalIdx].posAndRadius.xyz;
+    float radius = cullData[globalIdx].posAndRadius.w;
+    float meshType = cullData[globalIdx].coneAxis.w; // 0.0=Обычный, 1.0=Мешлет, 2.0=LOD1, 3.0=LOD2
+    
     bool isVisible = true;
-        float dist = distance(pos, camPos);
-                for (int i = 0; i < 6; i++) {
-        if (dot(frustumPlanes[i].xyz, pos) + frustumPlanes[i].w < -radius) {
+    float dist = distance(pos, camPos);
+
+    // ======================================================================
+    // 0. ГИБРИДНАЯ ЛОГИКА ДИСТАНЦИЙ (Ранний выход)
+    // ======================================================================
+    if (isShadowPass) {
+        if (meshType == 1.0 || meshType == 2.0) isVisible = false;
+    } else {
+        if (meshType == 1.0 && dist >= 50.0) isVisible = false; 
+        if (meshType == 2.0 && (dist < 50.0 || dist >= 150.0)) isVisible = false; 
+        if (meshType == 3.0 && dist < 150.0) isVisible = false; 
+    }
+
+    if (!isVisible) {
+        commands[globalIdx].instanceCount = 0;
+        return; 
+    }
+
+    // ======================================================================
+    // 1. FRUSTUM CULLING (С мягкими краями)
+    // ======================================================================
+    // Увеличили радиус на 50%, чтобы куски на краях экрана не пропадали!
+    float safeRadius = radius * 1.5; 
+    float cullingRadius = isShadowPass ? (safeRadius * 2.0) : safeRadius;
+    
+    for (int i = 0; i < 6; i++) {
+        if (dot(frustumPlanes[i].xyz, pos) + frustumPlanes[i].w < -cullingRadius) {
             isVisible = false;
             break; 
         }
     }
-                if (isVisible && !isShadowPass) {
+    
+    // ======================================================================
+    // 2. OCCLUSION CULLING (Hi-Z)
+    // ======================================================================
+    // СУПЕР-ФИКС ФПС: НЕ делаем текстурные выборки для мешлетов! (meshType != 1.0)
+    if (isVisible && !isShadowPass && meshType != 1.0) {
         vec3 aabbMin = pos - vec3(radius);
         vec3 aabbMax = pos + vec3(radius);
         vec4 corners[8] = {
-            vec4(aabbMin.x, aabbMin.y, aabbMin.z, 1.0),
-            vec4(aabbMin.x, aabbMin.y, aabbMax.z, 1.0),
-            vec4(aabbMin.x, aabbMax.y, aabbMin.z, 1.0),
-            vec4(aabbMin.x, aabbMax.y, aabbMax.z, 1.0),
-            vec4(aabbMax.x, aabbMin.y, aabbMin.z, 1.0),
-            vec4(aabbMax.x, aabbMin.y, aabbMax.z, 1.0),
-            vec4(aabbMax.x, aabbMax.y, aabbMin.z, 1.0),
-            vec4(aabbMax.x, aabbMax.y, aabbMax.z, 1.0)
+            vec4(aabbMin.x, aabbMin.y, aabbMin.z, 1.0), vec4(aabbMin.x, aabbMin.y, aabbMax.z, 1.0),
+            vec4(aabbMin.x, aabbMax.y, aabbMin.z, 1.0), vec4(aabbMin.x, aabbMax.y, aabbMax.z, 1.0),
+            vec4(aabbMax.x, aabbMin.y, aabbMin.z, 1.0), vec4(aabbMax.x, aabbMin.y, aabbMax.z, 1.0),
+            vec4(aabbMax.x, aabbMax.y, aabbMin.z, 1.0), vec4(aabbMax.x, aabbMax.y, aabbMax.z, 1.0)
         };
-        vec2 minXY = vec2(1.0);
-        vec2 maxXY = vec2(0.0);
-        float minZ = 1.0; 
+        vec2 minXY = vec2(1.0); vec2 maxXY = vec2(0.0); float minZ = 1.0; 
         bool behindNearPlane = false;
         for(int i = 0; i < 8; i++) {
             vec4 clip = viewProjection * corners[i];
             if (clip.w <= 0.0) { behindNearPlane = true; break; }
-            clip.xyz /= clip.w; 
-            clip.xy = clip.xy * 0.5 + 0.5;
-            clip.z = clip.z * 0.5 + 0.5;
-            minXY = min(minXY, clip.xy);
-            maxXY = max(maxXY, clip.xy);
-            minZ = min(minZ, clip.z);
+            clip.xyz /= clip.w; clip.xy = clip.xy * 0.5 + 0.5; clip.z = clip.z * 0.5 + 0.5;
+            minXY = min(minXY, clip.xy); maxXY = max(maxXY, clip.xy); minZ = min(minZ, clip.z);
         }
         if (!behindNearPlane) {
-            minXY = clamp(minXY, 0.0, 1.0);
-            maxXY = clamp(maxXY, 0.0, 1.0);
+            minXY = clamp(minXY, 0.0, 1.0); maxXY = clamp(maxXY, 0.0, 1.0);
             vec2 size = (maxXY - minXY) * screenSize;
             float mip = ceil(log2(max(size.x, size.y)));
             float depth1 = textureLod(hiZTexture, minXY, mip).r;
@@ -73,29 +103,47 @@ void main() {
             float depth3 = textureLod(hiZTexture, vec2(minXY.x, maxXY.y), mip).r;
             float depth4 = textureLod(hiZTexture, maxXY, mip).r;
             float maxWallDepth = max(max(depth1, depth2), max(depth3, depth4));
-            if (minZ > maxWallDepth) {
+            
+            if (minZ > maxWallDepth) isVisible = false;
+        }
+    }
+
+    // ======================================================================
+    // 3. CONE CULLING (Отсекаем невидимые стороны)
+    // ======================================================================
+    if (isVisible && meshType == 1.0 && !isShadowPass) {
+        vec3 apex = cullData[globalIdx].coneApexCutoff.xyz;
+        vec3 axis = cullData[globalIdx].coneAxis.xyz;
+        float cutoff = cullData[globalIdx].coneApexCutoff.w;
+
+        // ФИКС ИСЧЕЗНОВЕНИЙ: Считаем конус только если мы далеко от него.
+        if (distance(apex, camPos) > safeRadius * 2.0) {
+            vec3 viewDir = normalize(apex - camPos);
+            // Добавили + 0.15 к порогу, чтобы мешлет исчезал плавно за краем обзора
+            if (dot(viewDir, axis) >= cutoff + 0.15) { 
                 isVisible = false;
             }
         }
     }
-                if (isVisible) {
-        commands[idx].instanceCount = 1;
-                if (isShadowPass) {
-                                    commands[idx].count = meshLODs[2].count;
-            commands[idx].firstIndex = meshLODs[2].firstIndex;
-        } else {
-            if (dist < lodDistances[0]) {
-                                commands[idx].count = meshLODs[0].count;
-                commands[idx].firstIndex = meshLODs[0].firstIndex;
-            } else if (dist < lodDistances[1]) {
-                                commands[idx].count = meshLODs[1].count;
-                commands[idx].firstIndex = meshLODs[1].firstIndex;
+    
+    // 4. Запись команды
+    if (isVisible) {
+        commands[globalIdx].instanceCount = 1;
+        
+        // Меняем ЛОДы динамически ТОЛЬКО для старых "обычных" мешей
+        if (meshType == 0.0) {
+            uint meshID = objectData[globalIdx].meshID;
+            MeshLODInfo lods = meshes[meshID];
+
+            if (isShadowPass) {
+                commands[globalIdx].count = lods.countLOD2; commands[globalIdx].firstIndex = lods.firstIndexLOD2;
             } else {
-                                commands[idx].count = meshLODs[2].count;
-                commands[idx].firstIndex = meshLODs[2].firstIndex;
+                if (dist < 50.0) { commands[globalIdx].count = lods.countLOD0; commands[globalIdx].firstIndex = lods.firstIndexLOD0; }
+                else if (dist < 150.0) { commands[globalIdx].count = lods.countLOD1; commands[globalIdx].firstIndex = lods.firstIndexLOD1; }
+                else { commands[globalIdx].count = lods.countLOD2; commands[globalIdx].firstIndex = lods.firstIndexLOD2; }
             }
         }
     } else {
-        commands[idx].instanceCount = 0;
+        commands[globalIdx].instanceCount = 0;
     }
 }

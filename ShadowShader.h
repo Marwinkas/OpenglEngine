@@ -15,8 +15,8 @@ public:
     }
     unsigned int atlasFBO;
     unsigned int shadowAtlas;
-    int atlasResolution = 512;     
-    int tileSize = 128;            
+    int atlasResolution = 4096;
+    int tileSize = 512;
     unsigned int sunShadowArray;
     unsigned int staticSunShadowArray; // Кэш для статики
     bool staticShadowsDirty = true;    // Флаг: нужно ли перерисовать статику?

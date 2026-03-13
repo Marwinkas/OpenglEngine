@@ -2,10 +2,12 @@
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <filesystem>
+#include <ModelImporter.h>
 
 using json = nlohmann::json;
 namespace fs = std::filesystem;
-
+std::map<std::string, std::vector<Mesh>> Model::globalMeshCache;
+std::map<std::string, std::vector<std::string>> Model::globalMaterialCache;
 Model::Model(std::string const& path, std::string const& root)
 {
     this->projectRoot = root; // Запоминаем ПЕРЕД загрузкой
@@ -14,25 +16,97 @@ Model::Model(std::string const& path, std::string const& root)
 
 void Model::loadModel(std::string const& path)
 {
-    Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFile(path,
-        aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_CalcTangentSpace |
-        aiProcess_GenSmoothNormals | aiProcess_LimitBoneWeights);
-
-    // ГЛАВНАЯ ПРОВЕРКА: Если сцены нет - выходим и очищаем всё!
-    if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
-    {
-        std::cout << "[ERROR] Assimp failed: " << importer.GetErrorString() << std::endl;
-        meshes.clear();
-        loadedMaterialPaths.clear();
+    if (!path.ends_with(".bhmesh")) {
+        std::cerr << "[ERROR] Engine now only supports .bhmesh files! Please convert: " << path << std::endl;
         return;
     }
 
     directory = path.substr(0, path.find_last_of("/\\"));
-    loadedMaterialPaths.clear();
-    meshes.clear(); // На всякий случай очищаем старые меши
 
-    processNode(scene->mRootNode, scene, path);
+    // ===============================================================
+    // 1. СУПЕР-ОПТИМИЗАЦИЯ: ПРОВЕРКА КЭША
+    // Если модель уже грузили, берем данные из RAM/VRAM и выходим!
+    // ===============================================================
+    if (globalMeshCache.find(path) != globalMeshCache.end()) {
+        this->meshes = globalMeshCache[path];
+        this->loadedMaterialPaths = globalMaterialCache[path];
+        std::cout << "[CACHE] Instanced .bhmesh loaded from memory: " << path << std::endl;
+        return;
+    }
+
+    // ===============================================================
+    // 2. ЕСЛИ В КЭШЕ НЕТ, ЧИТАЕМ С ДИСКА (Твой оригинальный код)
+    // ===============================================================
+    std::ifstream file(path, std::ios::binary);
+    if (!file.is_open()) {
+        std::cerr << "[ERROR] Failed to open mesh: " << path << std::endl;
+        return;
+    }
+
+    BHModelHeader header;
+    file.read(reinterpret_cast<char*>(&header), sizeof(BHModelHeader));
+
+    loadedMaterialPaths.clear();
+    meshes.clear();
+
+    // Читаем пути к материалам
+    for (uint32_t i = 0; i < header.materialCount; ++i) {
+        char pathBuf[256];
+        file.read(pathBuf, sizeof(pathBuf));
+        loadedMaterialPaths.push_back(std::string(pathBuf));
+    }
+
+    // Читаем все меши
+    for (uint32_t m = 0; m < header.meshCount; ++m) {
+        BHMeshHeader meshHeader;
+        file.read(reinterpret_cast<char*>(&meshHeader), sizeof(BHMeshHeader));
+
+        uint32_t vCount;
+        file.read(reinterpret_cast<char*>(&vCount), sizeof(uint32_t));
+
+        std::vector<Vertex> vertices(vCount);
+        file.read(reinterpret_cast<char*>(vertices.data()), vCount * sizeof(Vertex));
+
+        std::vector<LODLevel> lodLevels;
+        std::vector<GLuint> allIndices;
+
+        for (uint32_t l = 0; l < meshHeader.lodCount; ++l) {
+            BHLodHeader lodHeader;
+            file.read(reinterpret_cast<char*>(&lodHeader), sizeof(BHLodHeader));
+
+            uint32_t offset = allIndices.size();
+
+            if (meshHeader.indexType == 0) {
+                std::vector<uint16_t> idx16(lodHeader.indexCount);
+                file.read(reinterpret_cast<char*>(idx16.data()), lodHeader.indexCount * sizeof(uint16_t));
+                for (uint16_t idx : idx16) allIndices.push_back((GLuint)idx);
+            }
+            else {
+                std::vector<uint32_t> idx32(lodHeader.indexCount);
+                file.read(reinterpret_cast<char*>(idx32.data()), lodHeader.indexCount * sizeof(uint32_t));
+                for (uint32_t idx : idx32) allIndices.push_back(idx);
+            }
+
+            lodLevels.push_back({ lodHeader.indexCount, offset });
+        }
+
+        Mesh newMesh(vertices, allIndices);
+        newMesh.name = meshHeader.name;
+        newMesh.lods = lodLevels;
+        newMesh.boundingRadius = meshHeader.boundingRadius;
+
+        meshes.push_back(newMesh);
+    }
+
+    file.close();
+
+    // ===============================================================
+    // 3. СОХРАНЯЕМ В КЭШ ДЛЯ СЛЕДУЮЩИХ КОПИЙ
+    // ===============================================================
+    globalMeshCache[path] = this->meshes;
+    globalMaterialCache[path] = this->loadedMaterialPaths;
+
+    std::cout << "[SUCCESS] Loaded new .bhmesh to VRAM: " << path << std::endl;
 }
 
 void Model::processNode(aiNode* node, const aiScene* scene, std::string const& modelPath)
@@ -49,26 +123,29 @@ void Model::processNode(aiNode* node, const aiScene* scene, std::string const& m
 }
 std::string Model::loadMaterialTexture(aiMaterial* mat, aiTextureType type, std::string typeName)
 {
-    // ЗАЩИТА ОТ ВЫЛЕТА: Проверяем, существует ли вообще материал
     if (!mat) return "";
 
     if (mat->GetTextureCount(type) > 0)
     {
         aiString str;
         mat->GetTexture(type, 0, &str);
-
-        // Если строка пустая - выходим
         if (str.length == 0) return "";
 
-        // Assimp возвращает путь так, как он записан в FBX.
         fs::path p(str.C_Str());
         std::string filename = p.filename().string();
 
-        // Проверяем, есть ли такая текстура в папке с моделью
+        // ==========================================
+        // МАГИЯ: АВТО-ПОДМЕНА РАСШИРЕНИЯ НА .bhtex
+        // ==========================================
+        size_t lastDot = filename.find_last_of(".");
+        if (lastDot != std::string::npos) {
+            // Отрезаем старое расширение (.png/.jpg) и приклеиваем наше!
+            filename = filename.substr(0, lastDot) + ".bhtex";
+        }
+
+        // Теперь движок будет искать именно скомпилированный файл!
         fs::path fullTexPath = fs::absolute(fs::path(directory) / filename);
         if (fs::exists(fullTexPath)) {
-            // Возвращаем относительный путь ОТ КОРНЯ ПРОЕКТА (чтобы загрузчик мог его найти)
-            // ВНИМАНИЕ: Если projectRoot пустой, используем просто directory
             if (!projectRoot.empty()) {
                 return fs::relative(fullTexPath, fs::absolute(projectRoot)).generic_string();
             }
@@ -76,8 +153,11 @@ std::string Model::loadMaterialTexture(aiMaterial* mat, aiTextureType type, std:
                 return (fs::path(directory) / filename).generic_string();
             }
         }
+        else {
+            std::cout << "[WARNING] Texture not found: " << fullTexPath << std::endl;
+        }
     }
-    return ""; // Если текстуры нет
+    return "";
 }
 
 Mesh Model::processMesh(aiMesh* mesh, const aiScene* scene, std::string const& modelPath)
@@ -100,21 +180,27 @@ Mesh Model::processMesh(aiMesh* mesh, const aiScene* scene, std::string const& m
             maxRadiusSquared = distSq;
         }
         if (mesh->HasNormals()) {
-            vertex.normal = glm::vec3(mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z);
+            glm::vec3 normal = glm::vec3(mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z); \
+                vertex.normal = PackNormalTo10_10_10_2(normal);
         }
         else {
-            vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);
+            vertex.normal = PackNormalTo10_10_10_2(glm::vec3(0.0f, 1.0f, 0.0f));
         }
         if (mesh->mTextureCoords[0])
         {
-            vertex.texUV = glm::vec2(mesh->mTextureCoords[0][i].x, mesh->mTextureCoords[0][i].y);
+             glm::vec2 texUV(mesh->mTextureCoords[0][i].x, mesh->mTextureCoords[0][i].y);
+            vertex.texUV = glm::packHalf2x16(texUV);
             if (mesh->HasTangentsAndBitangents()) {
-                vertex.tangent = glm::vec3(mesh->mTangents[i].x, mesh->mTangents[i].y, mesh->mTangents[i].z);
-                vertex.bitangent = glm::vec3(mesh->mBitangents[i].x, mesh->mBitangents[i].y, mesh->mBitangents[i].z);
+                glm::vec3 tangent(mesh->mTangents[i].x, mesh->mTangents[i].y, mesh->mTangents[i].z);
+                glm::vec3 bitangent(mesh->mBitangents[i].x, mesh->mBitangents[i].y, mesh->mBitangents[i].z);
+                vertex.tangent = PackNormalTo10_10_10_2(tangent);
+                vertex.bitangent = PackNormalTo10_10_10_2(bitangent);
             }
         }
         else {
-            vertex.texUV = glm::vec2(0.0f, 0.0f);
+            vertex.texUV = glm::packHalf2x16(glm::vec2(0.0f, 0.0f));
+            vertex.tangent = PackNormalTo10_10_10_2(glm::vec3(1.0f, 0.0f, 0.0f));
+            vertex.bitangent = PackNormalTo10_10_10_2(glm::vec3(0.0f, 1.0f, 0.0f));
         }
         vertices.push_back(vertex);
     }

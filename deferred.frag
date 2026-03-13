@@ -65,8 +65,8 @@ layout(std140) uniform LightBlock {
 };
 
 uniform sampler2D shadowAtlas;
-uniform float atlasResolution;
-uniform float tileSize;
+const float atlasResolution = 4096.0;
+const float tileSize = 512.0;
 struct LightGrid {
     uint offset;
     uint count;

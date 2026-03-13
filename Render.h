@@ -24,6 +24,27 @@ struct LightGrid {
 struct ClusterAABB {
 	glm::vec4 minPoint; 	glm::vec4 maxPoint;
 };
+struct RenderInstance {
+	entt::entity entity;
+	Material* material;
+};
+struct RenderBatch {
+	Mesh* mesh;
+	int commandOffset; // Сдвиг в глобальном буфере
+	int instanceCount;
+};
+struct alignas(16) ObjectData {
+	glm::mat4 modelMatrix;
+	GLuint materialID;
+	GLuint meshID;   
+	GLuint padding;
+};
+struct alignas(16) MeshLODInfo {
+	GLuint countLOD0, firstIndexLOD0;
+	GLuint countLOD1, firstIndexLOD1;
+	GLuint countLOD2, firstIndexLOD2;
+	GLuint pad1, pad2;
+};
 class Render {
 public:
 	Render();
@@ -34,7 +55,7 @@ public:
 	GLBuffer globalLightIndexBuffer;
 	GLBuffer atomicCounterBuffer;
 	GLBuffer uboLights;
-
+	GLBuffer meshInfoBuffer;
 	SkyAtmosphere sky; // Твое небо
 	glm::vec3 sunDir = glm::vec3(0.0f, -1.0f, 0.0f);
 
@@ -53,6 +74,28 @@ public:
 	void UpdateClusterGrid(Camera& camera, Window& window, CullingShader& cullingshader);
 	glm::mat4 CalculateCalculateCSMMatrix(float nearP, float farP, Camera& camera, float shadowSize);
 
+
+	std::vector<RenderBatch> mainDraws;
+	std::vector<RenderBatch> staticShadowDraws;
+	std::vector<RenderBatch> dynamicShadowDraws;
+
+	int totalMainInstances = 0;
+	int totalStaticShadowInstances = 0;
+	int totalDynamicShadowInstances = 0;
+
+	GLBuffer globalObjectBuffer;
+	GLBuffer globalSphereBuffer;
+	GLBuffer globalCommandBuffer;
+
+	bool isSceneDirty = true;
+	std::vector<MaterialGPUData> cachedMaterialDataArray;
+	std::map<Material*, int> cachedMaterialToIndex;
+	std::map<Mesh*, std::vector<RenderInstance>> cachedMainBatches;
+	std::map<Mesh*, std::vector<RenderInstance>> cachedShadowBatches;
+
+	// Функция пересборки (вызывается только при изменениях)
+	void RebuildBatches(entt::registry& registry);
+
 private:
 	
 
@@ -61,12 +104,12 @@ private:
 	glm::vec3 SetupLightsAndUBO(entt::registry& registry, ShadowShader& shadowshader);
 
 	// Вспомогательные функции тоже меняются (теперь они принимают std::vector<entt::entity> вместо std::vector<GameObject*>)
-	void DispatchGPUCulling(Mesh* mesh, std::vector<entt::entity>& batchObjects, entt::registry& registry, const glm::mat4& viewProj, const glm::vec3& camPos, bool isShadowPass, CullingShader& cullingshader, Window& window, GLuint hiZTex);
+	void GlobalGPUCulling(int offset, int count, const glm::mat4& viewProj, const glm::vec3& camPos, bool isShadowPass, CullingShader& cullingshader, Window& window, GLuint hiZTex);
 
-	std::vector<glm::mat4> RenderCSM(Camera& camera, std::map<Mesh*, std::vector<entt::entity>>& shadowBatches, entt::registry& registry, ShadowShader& shadowshader, CullingShader& cullingshader, Window& window);
+	std::vector<glm::mat4> RenderCSM(Camera& camera, std::map<Mesh*, std::vector<RenderInstance>>& shadowBatches, entt::registry& registry, ShadowShader& shadowshader, CullingShader& cullingshader, Window& window);
 
-	void RenderAtlasShadows(Camera& camera, entt::registry& registry, std::map<Mesh*, std::vector<entt::entity>>& shadowBatches, ShadowShader& shadowshader, CullingShader& cullingshader, Window& window);
+	void RenderAtlasShadows(Camera& camera, entt::registry& registry, ShadowShader& shadowshader, CullingShader& cullingshader, Window& window);
 
-	void RenderMainPass(Camera& camera, Window& window, std::map<std::pair<Mesh*, Material*>, std::vector<entt::entity>>& mainBatches, entt::registry& registry, std::vector<glm::mat4>& sunMatrices, LitShader& geometryShader, DefferedShader& deferredShader, ShadowShader& shadowshader, CullingShader& cullingshader, PostProcessingShader& ppShader);
+	void RenderMainPass(Camera& camera, Window& window, std::map<Mesh*, std::vector<RenderInstance>>& mainBatches, entt::registry& registry, std::vector<glm::mat4>& sunMatrices, LitShader& geometryShader, DefferedShader& deferredShader, ShadowShader& shadowshader, CullingShader& cullingshader, PostProcessingShader& ppShader);
 };
 #endif

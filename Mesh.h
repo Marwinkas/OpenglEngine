@@ -9,6 +9,8 @@
 #include "imgui_impl_opengl3.h"
 #include "ImGuizmo.h"
 #include "GLBuffer.h"
+#include <glm/gtc/packing.hpp>
+
 static int meshid;
 struct LODLevel {
 	unsigned int count;
@@ -16,6 +18,7 @@ struct LODLevel {
 };
 class Mesh
 {
+
 public:
     int ID = 0;
     std::vector <Vertex> vertices;

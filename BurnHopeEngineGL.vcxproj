@@ -162,9 +162,9 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>TRACY_ENABLE;_CRT_SECURE_NO_WARNINGS;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -186,12 +186,15 @@
     <ClCompile Include="Material.cpp" />
     <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="Model.cpp" />
+    <ClCompile Include="ModelImporter.cpp" />
     <ClCompile Include="PhysicsEngine.cpp" />
     <ClCompile Include="PostProcessingShader.cpp" />
     <ClCompile Include="Render.cpp" />
     <ClCompile Include="shaderClass.cpp" />
     <ClCompile Include="stb.cpp" />
     <ClCompile Include="Texture.cpp" />
+    <ClCompile Include="TextureImporter.cpp" />
+    <ClCompile Include="TextureStreamer.cpp" />
     <ClCompile Include="VAO.cpp" />
     <ClCompile Include="VBO.cpp" />
   </ItemGroup>
@@ -209,6 +212,7 @@
     <ClInclude Include="Mesh.h" />
     <ClInclude Include="MeshRenderer.h" />
     <ClInclude Include="Model.h" />
+    <ClInclude Include="ModelImporter.h" />
     <ClInclude Include="PhysicsEngine.h" />
     <ClInclude Include="PostProcessingShader.h" />
     <ClInclude Include="Render.h" />
@@ -217,6 +221,8 @@
     <ClInclude Include="ShadowShader.h" />
     <ClInclude Include="SkyAtmosphere.h" />
     <ClInclude Include="Texture.h" />
+    <ClInclude Include="TextureImporter.h" />
+    <ClInclude Include="TextureStreamer.h" />
     <ClInclude Include="Transform.h" />
     <ClInclude Include="UI.h" />
     <ClInclude Include="VAO.h" />

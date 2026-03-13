@@ -24,11 +24,13 @@
 #include <unordered_map>
 #include <fstream>
 #include <nlohmann/json.hpp>
-#include <stb_image.h> 
+#include "stb_image.h" 
 #include <algorithm> 
 #include <windows.h>
 #include <shellapi.h>
 #include <memory>
+#include <TextureImporter.h>
+#include <ModelImporter.h>
 
 class Render;
 using json = nlohmann::json;
@@ -266,8 +268,10 @@ public:
     std::string GetFileTypeName(const std::string& ext, bool isDir) {
         if (isDir) return "Folder";
         if (ext == ".bhmat") return "Material";
+        if (ext == ".bhtex") return "Texture";
         if (ext == ".bhscene") return "Scene";
         if (ext == ".png" || ext == ".jpg" || ext == ".jpeg") return "Image";
+        if (ext == ".bhtex") return "Texture";
         if (ext == ".obj" || ext == ".fbx") return "Model";
         return "File";
     }
@@ -499,7 +503,7 @@ public:
 
   
 
-    void DrawSceneInspector(entt::registry& registry) {
+    void DrawSceneInspector(entt::registry& registry, Render& render) {
         if (!showInspector) return;
         ImGui::Begin("Scene Inspector", &showInspector);
 
@@ -543,8 +547,9 @@ public:
                 ImGui::Checkbox("Visible", &meshComp.isVisible); ImGui::SameLine();
                 ImGui::Checkbox("Cast Shadow", &meshComp.castShadow);
 
-                if (DrawAssetPicker("Model", meshComp.modelPath, { ".fbx", ".obj" })) {
+                if (DrawAssetPicker("Model", meshComp.modelPath, { ".bhmesh" })) {
                     SaveState(registry);
+                    render.isSceneDirty = true;
                     fs::path absProjectDir = fs::absolute(projectDirectory);
                     std::string fullModelPath = (absProjectDir / meshComp.modelPath).string();
 
@@ -577,6 +582,7 @@ public:
                         }
                     }
                     if (registry.all_of<PhysicsComponent>(selectedEntity)) registry.get<PhysicsComponent>(selectedEntity).rebuildPhysics = true;
+                    
                 }
 
                 if (!meshComp.renderer.subMeshes.empty()) {
@@ -589,6 +595,7 @@ public:
 
                         if (DrawAssetPicker(slotName, meshComp.materialPaths[i], { ".bhmat" })) {
                             SaveState(registry);
+                            render.isSceneDirty = true;
                             std::string fullMatPath = (projectDirectory / meshComp.materialPaths[i]).string();
                             Material* newMat = Serializer::LoadMaterial(fullMatPath, projectDirectory.string());
                             if (newMat) meshComp.renderer.subMeshes[i].material = newMat;
@@ -596,7 +603,8 @@ public:
                     }
                 }
             }
-            if (removeMesh) { SaveState(registry); registry.erase<MeshComponent>(selectedEntity); }
+            if (removeMesh) { SaveState(registry); registry.erase<MeshComponent>(selectedEntity); render.isSceneDirty = true;
+            }
         }
 
         if (registry.all_of<LightComponent>(selectedEntity)) {
@@ -609,6 +617,10 @@ public:
                 ImGui::Checkbox("Enable Light", &lComp.enable);
                 const char* lightTypes[] = { "Directional", "Point", "Spot", "Rect", "Sky" }; int currentType = (int)lComp.type;
                 if (ImGui::Combo("Type", &currentType, lightTypes, IM_ARRAYSIZE(lightTypes))) { SaveState(registry); lComp.type = (LightType)currentType; }
+
+                const char* lightTypes2[] = { "Static", "Movable"}; int currentType2 = (int)lComp.mobility;
+                if (ImGui::Combo("Type Move", &currentType2, lightTypes2, IM_ARRAYSIZE(lightTypes2))) { SaveState(registry); lComp.mobility = (LightMobility)currentType2; }
+
 
                 ImGui::ColorEdit3("Color", glm::value_ptr(lComp.color));
                 ImGui::DragFloat("Intensity", &lComp.intensity, 0.1f, 0.0f, 1000.0f);
@@ -777,7 +789,9 @@ public:
         ImGui::EndChild();
         ImGui::NextColumn();
                 ImGui::BeginChild("RightGridPanel");
-        std::vector<fs::directory_entry> items;
+  
+                std::vector<fs::directory_entry> items;
+                
         std::string searchStr(searchBuffer); std::transform(searchStr.begin(), searchStr.end(), searchStr.begin(), ::tolower);
         if (!searchStr.empty()) {
             for (auto& entry : fs::recursive_directory_iterator(projectDirectory)) {
@@ -786,7 +800,57 @@ public:
             }
         }
         else {
-            for (auto& entry : fs::directory_iterator(currentDirectory)) items.push_back(entry);
+            for (auto& entry : fs::directory_iterator(currentDirectory)) {
+                items.push_back(entry);
+
+                // --- АВТО-КОНВЕРТАЦИЯ ПРИ ОБНАРУЖЕНИИ ---
+                // --- АВТО-КОНВЕРТАЦИЯ ПРИ ОБНАРУЖЕНИИ ---
+                if (entry.is_regular_file()) {
+                    std::string ext = entry.path().extension().string();
+                    if (ext == ".fbx" || ext == ".obj") {
+                        fs::path compressedPath = entry.path();
+                        compressedPath.replace_extension(".bhmesh");
+
+                        if (!fs::exists(compressedPath)) {
+                            std::cout << "Detected new model, compiling: " << entry.path().filename() << "...\n";
+
+                            if (ModelImporter::ImportModel(entry.path().string(), compressedPath.string(), projectDirectory.string())) {
+                                try {
+                                    fs::remove(entry.path());
+                                    std::cout << "Deleted original model: " << entry.path().filename() << "\n";
+                                }
+                                catch (...) {}
+                                continue;
+                            }
+                        }
+                    }
+                    if (ext == ".png" || ext == ".jpg" || ext == ".jpeg") {
+                        fs::path compressedPath = entry.path();
+                        compressedPath.replace_extension(".bhtex");
+
+                        if (!fs::exists(compressedPath)) {
+                            std::cout << "Detected new texture, compiling: " << entry.path().filename() << "...\n";
+
+                            // Если конвертация прошла успешно...
+                            if (TextureImporter::ImportTexture(entry.path().string(), compressedPath.string())) {
+
+                                // УДАЛЯЕМ СТАРУЮ КАРТИНКУ С ЖЕСТКОГО ДИСКА!
+                                try {
+                                    fs::remove(entry.path());
+                                    std::cout << "Deleted original file: " << entry.path().filename() << "\n";
+                                }
+                                catch (const fs::filesystem_error& e) {
+                                    std::cerr << "Cannot delete file: " << e.what() << "\n";
+                                }
+
+                                // Пропускаем добавление старого файла в UI, 
+                                // так как мы его только что стерли.
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
         }
         std::sort(items.begin(), items.end(), [](const fs::directory_entry& a, const fs::directory_entry& b) {
             if (a.is_directory() && !b.is_directory()) return true;
@@ -1092,19 +1156,39 @@ public:
         if (ImGui::Button("💾 SAVE SETTINGS", ImVec2(-1, 40))) SavePostProcessSettings();
     }
     void DrawTextureProperty(const char* label, char* pathBuffer, size_t bufferSize) {
-        ImGui::PushID(label); ImGui::Text("%s", label); GLuint texID = 0;
-        if (strlen(pathBuffer) > 0) texID = GetImageThumbnail(projectDirectory.string() + "/" + pathBuffer);
-        if (texID != 0) ImGui::Image((ImTextureID)(intptr_t)texID, ImVec2(64, 64)); else ImGui::Button("NO TEX", ImVec2(64, 64));
-        ImGui::SameLine(); ImGui::BeginGroup(); ImGui::TextWrapped("%s", strlen(pathBuffer) > 0 ? pathBuffer : "None");
-        if (ImGui::Button("Select Texture...")) ImGui::OpenPopup("TexturePickerPopup"); ImGui::EndGroup();
+        ImGui::PushID(label);
+        ImGui::Text("%s", label);
+
+        // Так как .bhtex - это сжатый бинарник видеокарты, stb_image не сможет сделать из него миниатюру.
+        // Поэтому мы просто показываем красивую иконку текстуры.
+        GLuint texID = GetFileIcon(".bhtex", false);
+
+        if (texID != 0 && strlen(pathBuffer) > 0)
+            ImGui::Image((ImTextureID)(intptr_t)texID, ImVec2(64, 64));
+        else
+            ImGui::Button("NO TEX", ImVec2(64, 64));
+
+        ImGui::SameLine();
+        ImGui::BeginGroup();
+        ImGui::TextWrapped("%s", strlen(pathBuffer) > 0 ? pathBuffer : "None");
+
+        if (ImGui::Button("Select Texture...")) ImGui::OpenPopup("TexturePickerPopup");
+        ImGui::EndGroup();
+
         if (ImGui::BeginPopup("TexturePickerPopup")) {
-            ImGui::TextColored(ImVec4(0.26f, 0.59f, 0.98f, 1.0f), "Available Textures:"); ImGui::Separator();
+            ImGui::TextColored(ImVec4(0.26f, 0.59f, 0.98f, 1.0f), "Available Textures:");
+            ImGui::Separator();
             for (auto& entry : fs::recursive_directory_iterator(projectDirectory)) {
                 if (entry.is_regular_file()) {
                     std::string ext = entry.path().extension().string();
-                    if (ext == ".png" || ext == ".jpg" || ext == ".jpeg") {
-                        std::string relPath = fs::relative(entry.path(), projectDirectory).string(); std::replace(relPath.begin(), relPath.end(), '\\', '/');
-                        if (ImGui::Selectable(relPath.c_str())) strcpy_s(pathBuffer, bufferSize, relPath.c_str());
+
+                    // --- ТЕПЕРЬ ИЩЕМ ТОЛЬКО .bhtex ---
+                    if (ext == ".bhtex") {
+                        std::string relPath = fs::relative(entry.path(), projectDirectory).string();
+                        std::replace(relPath.begin(), relPath.end(), '\\', '/');
+                        if (ImGui::Selectable(relPath.c_str())) {
+                            strcpy_s(pathBuffer, bufferSize, relPath.c_str());
+                        }
                     }
                 }
             }
@@ -1129,6 +1213,69 @@ public:
         else if (ext == ".png" || ext == ".jpg") {
             ImGui::TextColored(ImVec4(0.26f, 0.59f, 0.98f, 1.0f), "Image: %s", filename.c_str()); ImGui::Separator();
             GLuint texID = GetImageThumbnail(activeAsset); if (texID != 0) ImGui::Image((ImTextureID)(intptr_t)texID, ImVec2(200.0f, 200.0f));
+        }
+        else if (ext == ".bhtex") {
+            ImGui::TextColored(ImVec4(0.26f, 0.59f, 0.98f, 1.0f), "Texture Asset: %s", filename.c_str());
+            ImGui::Separator();
+
+            // Загружаем миниатюру, если она есть
+            GLuint texID = GetImageThumbnail(activeAsset);
+            if (texID != 0) {
+                ImGui::Image((ImTextureID)(intptr_t)texID, ImVec2(128.0f, 128.0f));
+                ImGui::Spacing();
+            }
+
+            // 1. Читаем текущие настройки прямо из файла
+            BHTexHeader header;
+            if (TextureImporter::ReadHeader(activeAsset, header)) {
+                ImGui::TextDisabled("Resolution: %d x %d", header.width, header.height);
+                ImGui::TextDisabled("Mipmaps: %d", header.mipCount);
+                ImGui::TextDisabled("Compression: %s", header.format == 1 ? "BC3 (DXT5 - Alpha)" : "BC1 (DXT1 - No Alpha)");
+                ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+
+                bool settingsChanged = false;
+
+                // Массивы для выпадающих списков
+                const char* wrapNames[] = { "Repeat", "Clamp To Edge", "Mirrored Repeat" };
+                uint32_t wrapValues[] = { GL_REPEAT, GL_CLAMP_TO_EDGE, GL_MIRRORED_REPEAT };
+
+                const char* minNames[] = { "Linear Mipmap Linear", "Nearest Mipmap Nearest", "Linear", "Nearest" };
+                uint32_t minValues[] = { GL_LINEAR_MIPMAP_LINEAR, GL_NEAREST_MIPMAP_NEAREST, GL_LINEAR, GL_NEAREST };
+
+                const char* magNames[] = { "Linear", "Nearest" };
+                uint32_t magValues[] = { GL_LINEAR, GL_NEAREST };
+
+                // Хелпер, чтобы найти нужный индекс по значению из файла
+                auto getIndex = [](uint32_t val, uint32_t* arr, int size) {
+                    for (int i = 0; i < size; i++) if (arr[i] == val) return i;
+                    return 0;
+                    };
+
+                // --- ОТРИСОВКА ИНТЕРФЕЙСА ---
+                ImGui::TextColored(ImVec4(0.6f, 0.4f, 0.9f, 1.0f), "Advanced Settings");
+
+                int currentWrapS = getIndex(header.wrapS, wrapValues, 3);
+                if (ImGui::Combo("Wrap S (U)", &currentWrapS, wrapNames, 3)) { header.wrapS = wrapValues[currentWrapS]; settingsChanged = true; }
+
+                int currentWrapT = getIndex(header.wrapT, wrapValues, 3);
+                if (ImGui::Combo("Wrap T (V)", &currentWrapT, wrapNames, 3)) { header.wrapT = wrapValues[currentWrapT]; settingsChanged = true; }
+
+                ImGui::Spacing();
+
+                int currentMin = getIndex(header.minFilter, minValues, 4);
+                if (ImGui::Combo("Min Filter", &currentMin, minNames, 4)) { header.minFilter = minValues[currentMin]; settingsChanged = true; }
+
+                int currentMag = getIndex(header.magFilter, magValues, 2);
+                if (ImGui::Combo("Mag Filter", &currentMag, magNames, 2)) { header.magFilter = magValues[currentMag]; settingsChanged = true; }
+
+
+                // 2. Если пользователь дернул ползунок - мгновенно перезаписываем файл!
+                if (settingsChanged) {
+                    TextureImporter::UpdateHeader(activeAsset, header);
+                    // В будущем мы добавим сюда вызов обновления текстуры в видеопамяти, 
+                    // если она прямо сейчас используется на какой-то 3D-модели!
+                }
+            }
         }
         else if (ext == ".bhmat") {
             ImGui::TextColored(ImVec4(0.26f, 0.59f, 0.98f, 1.0f), "Material Settings: %s", filename.c_str());
@@ -1323,6 +1470,7 @@ public:
                 });
             if (hitIndex != entt::null) {
                 selectedEntity = hitIndex;
+                render.isSceneDirty = true;
                 ImGuizmo::RecomposeMatrixFromComponents(glm::value_ptr(registry.get<TransformComponent>(selectedEntity).transform.position), glm::value_ptr(registry.get<TransformComponent>(selectedEntity).transform.rotation), glm::value_ptr(registry.get<TransformComponent>(selectedEntity).transform.scale), glm::value_ptr(model));
             }
         }
@@ -1334,6 +1482,7 @@ public:
             ImGuizmo::Manipulate(glm::value_ptr(view), glm::value_ptr(proj), currentGizmoOperation, currentGizmoMode, glm::value_ptr(model));
 
             if (ImGuizmo::IsUsing()) {
+                render.isSceneDirty = true;
                 glm::mat4 newWorldMatrix = model;
                 if (registry.all_of<HierarchyComponent>(selectedEntity)) {
                     entt::entity parent = registry.get<HierarchyComponent>(selectedEntity).parent;
@@ -1349,7 +1498,9 @@ public:
         }
 
         DrawSceneOutliner(registry, io);
-        DrawSceneInspector(registry);
+        DrawSceneInspector(registry,render);
+        DrawContentBrowser();
+        DrawPropertiesWindow();
         // Вызов твоих старых методов, которые я не стал сюда переписывать целиком, чтобы не было ошибки лимита символов
         // Вставь сюда свой код DrawContentBrowser() и DrawPropertiesWindow() из старого файла
         // Я оставил в классе прототипы функций, просто скопируй тела этих двух функций из старого UI.h!
