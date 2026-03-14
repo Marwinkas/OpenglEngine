@@ -1,0 +1,76 @@
+﻿#version 430 core
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(rgba16f, binding = 0) writeonly uniform image2D imgOutput;
+
+uniform sampler2D screenTexture; 
+uniform sampler2D depthTexture;
+uniform sampler2D normalTexture;
+uniform sampler2D ssaoTexture;    
+uniform sampler2D sscsTexture;
+uniform sampler3D volumetricFogTex;
+
+// НОВЫЕ ТЕКСТУРЫ ДЛЯ RTGI
+uniform sampler2D rtgiTexture;   // Отраженный свет (отскоки)
+uniform sampler2D albedoTexture; // Базовый цвет объектов (чтобы красить свет)
+
+uniform int hasSSAO;
+uniform int enableFog;
+uniform int enableChromaticAberration;
+uniform float caIntensity;
+
+uniform mat4 invViewProj;
+uniform mat4 viewMatrix;
+
+vec3 ReconstructWorldPos(vec2 uv, float depth) {
+    vec4 ndc = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+    vec4 worldPos = invViewProj * ndc;
+    return worldPos.xyz / worldPos.w;
+}
+
+vec3 sampleChromatic(vec2 uv) {
+    if (enableChromaticAberration == 0) return texture(screenTexture, uv).rgb;
+    vec2 coords = uv * 2.0 - 1.0;
+    float k = length(coords) * caIntensity * 2.0; 
+    return vec3(texture(screenTexture, uv - coords * k * 0.02).r, 
+                texture(screenTexture, uv).g, 
+                texture(screenTexture, uv + coords * k * 0.02).b);
+}
+
+void main() {
+    ivec2 texCoords = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 imgSize = imageSize(imgOutput);
+    if(texCoords.x >= imgSize.x || texCoords.y >= imgSize.y) return;
+
+    vec2 uv = (vec2(texCoords) + 0.5) / vec2(imgSize);
+    float depth = texture(depthTexture, uv).r;
+    
+    // Это наш основной, прямой свет от ламп и солнца
+    vec3 color = sampleChromatic(uv);
+
+    if (depth < 0.9999) {
+        float ssao = (hasSSAO == 1) ? texture(ssaoTexture, uv).r : 1.0;
+        float sscs = texture(sscsTexture, uv).r;
+
+        // МЕЙДЖИК: Читаем отскоки света и умножаем их на цвет предмета
+        vec3 indirectLight = texture(rtgiTexture, uv).rgb;
+        vec3 albedo = texture(albedoTexture, uv).rgb;
+        
+        // Прибавляем непрямой свет к основному
+        color += (indirectLight * albedo);
+
+        // Затемняем всё это тенями и АО
+        color = color * sscs * ssao; 
+    }
+
+    if (enableFog == 1) {
+        vec3 worldPos = ReconstructWorldPos(uv, depth);
+        float fogZNear = 0.1; float fogZFar = 100.0;
+        float viewZ = (depth >= 0.9999) ? -fogZFar : min((viewMatrix * vec4(worldPos, 1.0)).z, -fogZNear);
+        float sliceZ = clamp(log(viewZ / -fogZNear) / log(fogZFar / fogZNear), 0.0, 1.0);
+        
+        vec4 fogData = texture(volumetricFogTex, vec3(uv, sliceZ));
+        if (!isnan(fogData.a) && !isnan(fogData.r)) color = color * fogData.a + fogData.rgb;
+    }
+
+    imageStore(imgOutput, texCoords, vec4(color, 1.0));
+}

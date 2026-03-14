@@ -224,7 +224,7 @@ void Render::RebuildBatches(entt::registry& registry) {
 		glDisable(GL_CULL_FACE);
 		
 		sky.Draw(camera, sunDir);
-		postprocessingshader.Update(window, crntTime, camera, ui, sunDir, uboLights.ID, shadowshader, hdrOutputTexture,gDepth,gNormalRoughness);
+		postprocessingshader.Update(window, crntTime, camera, ui, sunDir, uboLights.ID, shadowshader, hdrOutputTexture,gDepth,gNormalRoughness, gAlbedoAO);
 		FrameMark;
 
 		
@@ -335,7 +335,7 @@ void Render::RebuildBatches(entt::registry& registry) {
 	}
 	
 	glm::mat4 Render::CalculateCalculateCSMMatrix(float nearP, float farP, Camera& camera, float shadowSize) {
-		glm::mat4 proj = camera.GetProjectionMatrix(45.0f, nearP, farP, false);
+		glm::mat4 proj = camera.GetProjectionMatrix(45.0f, nearP, farP);
 		glm::mat4 invCam = glm::inverse(proj * camera.GetViewMatrix());
 
 		std::vector<glm::vec4> frustumCorners;
@@ -475,6 +475,8 @@ void Render::RebuildBatches(entt::registry& registry) {
 
 
     void Render::RenderAtlasShadows(Camera& camera, entt::registry& registry, ShadowShader& shadowshader, CullingShader& cullingshader, Window& window) {
+        
+            
         glBindFramebuffer(GL_FRAMEBUFFER, shadowshader.atlasFBO);
         glEnable(GL_SCISSOR_TEST);
 

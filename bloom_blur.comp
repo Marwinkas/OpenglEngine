@@ -1,0 +1,39 @@
+﻿#version 430 core
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(rgba16f, binding = 0) writeonly uniform image2D imgOutput;
+uniform sampler2D imageInput;
+
+// ФИКС 1: Используем int вместо bool! Железобетонная надежность.
+uniform int horizontal; 
+uniform vec2 targetSize; 
+
+const float weight[5] = float[](0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216);
+
+void main() {
+    ivec2 texCoords = ivec2(gl_GlobalInvocationID.xy);
+    if(texCoords.x >= int(targetSize.x) || texCoords.y >= int(targetSize.y)) return;
+
+    vec2 uv = (vec2(texCoords) + 0.5) / targetSize;
+    
+    // ФИКС 2: Умножаем шаг на 1.5. Это сделает свечение намного мягче 
+    // и окончательно убьет микро-ребристость (пикселизацию).
+    vec2 tex_offset = (1.5) / targetSize; 
+    
+    vec3 result = texture(imageInput, uv).rgb * weight[0];
+
+    // Проверяем как int
+    if(horizontal == 1) { 
+        for(int i = 1; i < 5; ++i) {
+            result += texture(imageInput, uv + vec2(tex_offset.x * float(i), 0.0)).rgb * weight[i];
+            result += texture(imageInput, uv - vec2(tex_offset.x * float(i), 0.0)).rgb * weight[i];
+        }
+    } else {
+        for(int i = 1; i < 5; ++i) {
+            result += texture(imageInput, uv + vec2(0.0, tex_offset.y * float(i))).rgb * weight[i];
+            result += texture(imageInput, uv - vec2(0.0, tex_offset.y * float(i))).rgb * weight[i];
+        }
+    }
+    
+    imageStore(imgOutput, texCoords, vec4(result, 1.0));
+}

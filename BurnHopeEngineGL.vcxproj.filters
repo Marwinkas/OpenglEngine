@@ -217,43 +217,10 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="bloom_blur.frag">
-      <Filter>Resource Files\Shaders\postprocessing</Filter>
-    </None>
-    <None Include="bloom_threshold.frag">
-      <Filter>Resource Files\Shaders\postprocessing</Filter>
-    </None>
-    <None Include="blur.frag">
-      <Filter>Resource Files\Shaders\postprocessing</Filter>
-    </None>
-    <None Include="camera_fx.frag">
-      <Filter>Resource Files\Shaders\postprocessing</Filter>
-    </None>
-    <None Include="final.frag">
-      <Filter>Resource Files\Shaders\postprocessing</Filter>
-    </None>
     <None Include="framebuffer.vert">
       <Filter>Resource Files\Shaders\postprocessing</Filter>
     </None>
-    <None Include="ssao.frag">
-      <Filter>Resource Files\Shaders\postprocessing</Filter>
-    </None>
-    <None Include="ssgi.frag">
-      <Filter>Resource Files\Shaders\postprocessing</Filter>
-    </None>
     <None Include="gbuffer.vert">
-      <Filter>Resource Files\Shaders\graphic</Filter>
-    </None>
-    <None Include="default.frag">
-      <Filter>Resource Files\Shaders\graphic</Filter>
-    </None>
-    <None Include="shadowCubeMap.frag">
-      <Filter>Resource Files\Shaders\graphic</Filter>
-    </None>
-    <None Include="shadowCubeMap.geom">
-      <Filter>Resource Files\Shaders\graphic</Filter>
-    </None>
-    <None Include="shadowCubeMap.vert">
       <Filter>Resource Files\Shaders\graphic</Filter>
     </None>
     <None Include="shadowMap.frag">
@@ -283,28 +250,13 @@
     <None Include="light_culling.comp">
       <Filter>Resource Files\Shaders\optimization</Filter>
     </None>
-    <None Include="ssgi_blur.frag">
-      <Filter>Resource Files\Shaders\postprocessing</Filter>
-    </None>
-    <None Include="ssao_blur.frag">
-      <Filter>Resource Files\Shaders\postprocessing</Filter>
-    </None>
     <None Include="sharpen.frag">
-      <Filter>Resource Files\Shaders\postprocessing</Filter>
-    </None>
-    <None Include="taa.frag">
       <Filter>Resource Files\Shaders\postprocessing</Filter>
     </None>
     <None Include="volumetric_accumulate.comp">
       <Filter>Resource Files\Shaders\postprocessing</Filter>
     </None>
     <None Include="volumetric_inject.comp">
-      <Filter>Resource Files\Shaders\postprocessing</Filter>
-    </None>
-    <None Include="rc_raycast.comp">
-      <Filter>Resource Files\Shaders\postprocessing</Filter>
-    </None>
-    <None Include="rc_collapse.comp">
       <Filter>Resource Files\Shaders\postprocessing</Filter>
     </None>
     <None Include="voxelize.vert">
@@ -316,19 +268,37 @@
     <None Include="voxelize.frag">
       <Filter>Resource Files\Shaders\Voxel</Filter>
     </None>
-    <None Include="voxel_mipmap.comp">
-      <Filter>Resource Files\Shaders\postprocessing</Filter>
-    </None>
     <None Include="gbuffer.frag">
       <Filter>Resource Files\Shaders\graphic</Filter>
     </None>
-    <None Include="deferred.vert">
-      <Filter>Resource Files\Shaders\graphic</Filter>
-    </None>
-    <None Include="deferred.frag">
-      <Filter>Resource Files\Shaders\graphic</Filter>
-    </None>
     <None Include="lighting.comp">
+      <Filter>Resource Files\Shaders\graphic</Filter>
+    </None>
+    <None Include="C:\Users\Marwinka\Desktop\voxel_mipmap.comp">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="bloom_threshold.comp">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="bloom_blur.comp">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="ssao.comp">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="ssao_blur.comp">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="sscs.comp">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="scene_color.comp">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="postprocess.comp">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="rtgi.comp">
       <Filter>Resource Files\Shaders\graphic</Filter>
     </None>
   </ItemGroup>

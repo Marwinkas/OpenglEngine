@@ -12,21 +12,23 @@
     static int MaterialID;
     // Добавляем выравнивание!
     struct alignas(16) MaterialGPUData {
-        GLuint64 albedoHandle;
-        GLuint64 normalHandle;
-        GLuint64 heightHandle;
-        GLuint64 metallicHandle;
-        GLuint64 roughnessHandle;
-        GLuint64 aoHandle;
-        int hasAlbedo;
-        int hasNormal;
-        int hasHeight;
-        int hasMetallic;
-        int hasRoughness;
-        int hasAO;
-        int useTriplanar = 1;
-        float triplanarScale = 4.0f;
-        float padding[2];
+        uint64_t albedoHandle;     // 8 байт
+        uint64_t normalHandle;     // 8 байт
+        uint64_t heightHandle;     // 8 байт
+        uint64_t metallicHandle;   // 8 байт
+        uint64_t roughnessHandle;  // 8 байт
+        uint64_t aoHandle;         // 8 байт (Итого: 48 байт)
+
+        int hasAlbedo;             // 4 байт
+        int hasNormal;             // 4 байт
+        int hasHeight;             // 4 байт
+        int hasMetallic;           // 4 байт
+        int hasRoughness;          // 4 байт
+        int hasAO;                 // 4 байт
+        int useTriplanar;          // 4 байт
+        float triplanarScale;      // 4 байт (Итого: 32 байта)
+
+        float padding[4];          // 16 байт ПУСТОТЫ. Добиваем общий размер ровно до 96 байт!
     };
     class Material
     {

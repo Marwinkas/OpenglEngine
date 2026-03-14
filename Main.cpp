@@ -111,21 +111,17 @@ int main()
             static bool f5Pressed = false;
             if (glfwGetKey(window.window, GLFW_KEY_F5) == GLFW_PRESS) {
                 if (!f5Pressed) {
-                    camera.TogglePlayMode(physicsEngine);
                     f5Pressed = true;
                 }
             }
-            else {
-                f5Pressed = false;
-            }
-            camera.UpdatePhysics(deltaTime);
-            physicsEngine.SyncTransforms(Objects);
-            physicsEngine.Update(deltaTime);
+           
+            std::cout << f5Pressed;
 
             render.Draw(registry, litshader, shadowshader, postprocessingshader, window, camera, glfwGetTime(), ui, cullingshader, deferredshader);
-            ui.Draw(window, camera, registry, render);
             
-            physicsEngine.ApplyUIChanges(Objects);
+            if (!f5Pressed) {
+                ui.Draw(window, camera, registry, render);
+            }
             glfwSwapBuffers(window.window);
             glfwPollEvents();
         }

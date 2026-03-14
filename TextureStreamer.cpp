@@ -100,86 +100,50 @@ bool TextureStreamer::Update() {
     }
 
     if (task != nullptr) {
-        // ЭТАП 1: Выделяем память и загружаем "мыло" (Первый кадр)
-        if (!task->isStorageAllocated) {
-            glGenTextures(1, &task->textureID);
-            glBindTexture(GL_TEXTURE_2D, task->textureID);
+        glGenTextures(1, &task->textureID);
+        glBindTexture(GL_TEXTURE_2D, task->textureID);
 
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, task->header.wrapS);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, task->header.wrapT);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, task->header.minFilter);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, task->header.magFilter);
+        // ЖЕСТКО СТАВИМ ПРАВИЛЬНЫЕ ФИЛЬТРЫ (Перебиваем битые настройки JSON)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, task->header.wrapS);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, task->header.wrapT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-            GLenum glFormat = (task->header.format == 1) ?
-                (task->header.isSRGB ? GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT : GL_COMPRESSED_RGBA_S3TC_DXT5_EXT) :
-                (task->header.isSRGB ? GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT : GL_COMPRESSED_RGBA_S3TC_DXT1_EXT);
-
-            // Резервируем память под ВСЕ мипы сразу
-            glTexStorage2D(GL_TEXTURE_2D, task->header.mipCount, glFormat, task->header.width, task->header.height);
-
-            // =========================================================
-            // ФИКС: Ограничиваем текстуру только теми мипами, которые есть
-            // =========================================================
-            int startMip = std::min((int)task->header.mipCount - 1, 4); // Грузим с 4-го (или последнего, если текстура мелкая)
-
-            // Говорим OpenGL временно считать базовым уровнем наш мыльный мип!
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, startMip);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, task->header.mipCount - 1);
-            // =========================================================
-
-            glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
-            task->currentMipToUpload = startMip;
-            while (task->currentMipToUpload >= 0) {
-                // Если мы дошли до 3-го мипа, останавливаем синхронную загрузку,
-                // остальное догрузим асинхронно в следующих кадрах!
-                if (task->currentMipToUpload < startMip - 2) break;
-
-                UploadSingleMip(task, task->currentMipToUpload);
-                task->currentMipToUpload--;
-            }
-            glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-
-            task->bindlessHandle = glGetTextureHandleARB(task->textureID);
-            glMakeTextureHandleResidentARB(task->bindlessHandle);
-
-            task->targetTexture->ID = task->textureID;
-            task->targetTexture->handle = task->bindlessHandle;
-
-            task->isStorageAllocated = true;
-            return true; // Обновляем SSBO!
+        // ВАЖНО: АНИЗОТРОПНАЯ ФИЛЬТРАЦИЯ (УБИВАЕТ МЫЛО ПОД УГЛОМ НА ПОЛУ)
+        float maxAniso = 0.0f;
+        glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAniso);
+        if (maxAniso > 0.0f) {
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, maxAniso);
         }
-        // ЭТАП 2: Догружаем тяжелые мипы
-        else {
-            if (task->currentMipToUpload >= 0) {
-                glBindTexture(GL_TEXTURE_2D, task->textureID);
-                glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
 
-                UploadSingleMip(task, task->currentMipToUpload);
+        GLenum glFormat = (task->header.format == 1) ?
+            (task->header.isSRGB ? GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT : GL_COMPRESSED_RGBA_S3TC_DXT5_EXT) :
+            (task->header.isSRGB ? GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT : GL_COMPRESSED_RGBA_S3TC_DXT1_EXT);
 
-                // =========================================================
-                // ФИКС: По мере загрузки больших мипов, сдвигаем Base Level!
-                // Это заставит текстуру становиться резче прямо на глазах!
-                // =========================================================
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, task->currentMipToUpload);
+        // Резервируем память под ВСЕ мипы сразу
+        glTexStorage2D(GL_TEXTURE_2D, task->header.mipCount, glFormat, task->header.width, task->header.height);
 
-                glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-                task->currentMipToUpload--;
-            }
-
-            if (task->currentMipToUpload < 0) {
-                std::cout << "[Стриминг] Текстура ПОЛНОСТЬЮ прогружена: " << task->filepath << std::endl;
-
-                // Возвращаем настройки в нормальное состояние
-                glBindTexture(GL_TEXTURE_2D, task->textureID);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
-                glBindTexture(GL_TEXTURE_2D, 0);
-
-                std::lock_guard<std::mutex> lock(queueMutex);
-                readyQueue.pop();
-                delete task;
-            }
-            return false;
+        // Грузим ВСЕ мипмапы за один проход! (С PBO это безопасно и быстро)
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
+        for (uint32_t m = 0; m < task->header.mipCount; m++) {
+            UploadSingleMip(task, m);
         }
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+        // Создаем резидентный хэндл ОДИН РАЗ, без изменения Base Level
+        task->bindlessHandle = glGetTextureHandleARB(task->textureID);
+        glMakeTextureHandleResidentARB(task->bindlessHandle);
+
+        task->targetTexture->ID = task->textureID;
+        task->targetTexture->handle = task->bindlessHandle;
+
+        std::cout << "[Стриминг] Текстура загружена ИДЕАЛЬНО: " << task->filepath << std::endl;
+
+        std::lock_guard<std::mutex> lock(queueMutex);
+        readyQueue.pop();
+        delete task;
+
+        return true; // Дергаем SSBO (isSceneDirty = true в main)
     }
     return false;
 }

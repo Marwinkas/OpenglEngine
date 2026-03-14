@@ -1196,7 +1196,7 @@ public:
         }
         ImGui::PopID();
     }
-    void DrawPropertiesWindow() {
+    void DrawPropertiesWindow(Render& render) {
         if (!showProperties) return;
         ImGui::Begin("Properties", &showProperties);
         std::string activeAsset = GetPrimarySelection();
@@ -1291,6 +1291,7 @@ public:
             ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
 
             if (ImGui::Button("💾 SAVE MATERIAL", ImVec2(-1, 40))) {
+                render.isSceneDirty = true;
                 std::ifstream fileIn(activeAsset);
                 json j;
                 if (fileIn.is_open()) {
@@ -1500,7 +1501,7 @@ public:
         DrawSceneOutliner(registry, io);
         DrawSceneInspector(registry,render);
         DrawContentBrowser();
-        DrawPropertiesWindow();
+        DrawPropertiesWindow(render);
         // Вызов твоих старых методов, которые я не стал сюда переписывать целиком, чтобы не было ошибки лимита символов
         // Вставь сюда свой код DrawContentBrowser() и DrawPropertiesWindow() из старого файла
         // Я оставил в классе прототипы функций, просто скопируй тела этих двух функций из старого UI.h!

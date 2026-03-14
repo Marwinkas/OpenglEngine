@@ -1,0 +1,103 @@
+﻿#version 430 core
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(r16f, binding = 0) writeonly uniform image2D imgOutput;
+
+uniform sampler2D depthTexture;
+uniform sampler2D normalTexture;
+uniform sampler2D hiZTexture;
+uniform sampler2D noiseTexture;
+
+uniform mat4 invViewProj;
+uniform mat4 projectionMatrix;
+uniform vec3 camPos;
+uniform vec3 sunDirFog;
+uniform float contactShadowLength;
+uniform float contactShadowThickness;
+uniform int contactShadowSteps;
+uniform int hiZMipCount;
+
+// Флаг в виде int
+uniform int enableContactShadows; 
+
+vec3 ReconstructWorldPos(vec2 uv, float depth) {
+    vec4 ndc = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+    vec4 worldPos = invViewProj * ndc;
+    return worldPos.xyz / worldPos.w;
+}
+
+// ФИКС ОШИБКИ C7011 (Берем только .xy)
+vec2 worldPosToUV(vec3 worldPos) {
+    vec4 projected = projectionMatrix * vec4(worldPos, 1.0);
+    return (projected.xy / projected.w) * 0.5 + 0.5;
+}
+
+float worldToNDCDepth(vec3 worldPos) {
+    vec4 projected = projectionMatrix * vec4(worldPos, 1.0);
+    return (projected.z / projected.w) * 0.5 + 0.5;
+}
+
+void main() {
+    ivec2 texCoords = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 imgSize = imageSize(imgOutput);
+    if(texCoords.x >= imgSize.x || texCoords.y >= imgSize.y) return;
+
+    if (enableContactShadows == 0) { imageStore(imgOutput, texCoords, vec4(1.0)); return; }
+
+    vec2 uv = (vec2(texCoords) + 0.5) / vec2(imgSize);
+    float depth = texture(depthTexture, uv).r;
+
+    if (depth >= 0.9999) { imageStore(imgOutput, texCoords, vec4(1.0)); return; }
+
+    vec3 worldPos = ReconstructWorldPos(uv, depth);
+    vec3 worldNormal = texture(normalTexture, uv).rgb;
+    if(length(worldNormal) < 0.1) { imageStore(imgOutput, texCoords, vec4(1.0)); return; }
+
+    float distToCam = distance(camPos, worldPos);
+    float maxVisibleDist = 30.0; 
+    float fadeStart = 20.0;      
+    if (distToCam > maxVisibleDist) { imageStore(imgOutput, texCoords, vec4(1.0)); return; }
+    
+    float fadeFactor = 1.0 - smoothstep(fadeStart, maxVisibleDist, distToCam);
+    vec3 rayDir = normalize(-sunDirFog); 
+    float dither = texture(noiseTexture, vec2(texCoords) / 256.0).r;
+    
+    // ФИКС ЧЕРНЫХ ПЯТЕН (Увеличиваем отступ от поверхности)
+    float bias = 0.05 + (distToCam * 0.02); 
+    vec3 rayOrigin = worldPos + worldNormal * bias;
+    
+    float maxDist = min(contactShadowLength, distToCam * 0.1); 
+    float stepDist = maxDist / float(max(contactShadowSteps, 1));
+    
+    // Начинаем проверку не сразу, а с отступом (чтобы луч не врезался в свой же пиксель)
+    float currentT = stepDist * (dither + 2.0); 
+    
+    int currentMip = 0;
+    float shadowIntensity = 1.0; 
+    float dynamicThickness = contactShadowThickness * (1.0 + distToCam * 0.05);
+
+    for (int i = 0; i < contactShadowSteps; i++) {
+        vec3 sampleWorldPos = rayOrigin + rayDir * currentT;
+        vec2 sampleUV = worldPosToUV(sampleWorldPos);
+
+        if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0) break;
+
+        float hiZDepth = textureLod(hiZTexture, sampleUV, currentMip).r;
+        float rayDepth = worldToNDCDepth(sampleWorldPos);
+
+        if (rayDepth > hiZDepth) {
+            if (currentMip == 0) {
+                float hitDepth = texture(depthTexture, sampleUV).r;
+                vec3 hitWorldPos = ReconstructWorldPos(sampleUV, hitDepth); 
+                if (distance(hitWorldPos, sampleWorldPos) < dynamicThickness) {
+                    shadowIntensity = clamp(currentT / maxDist, 0.0, 1.0); break;
+                }
+                currentT += stepDist;
+            } else { currentMip--; }
+        } else {
+            currentT += stepDist * (1.0 + float(currentMip));
+            if (currentMip < hiZMipCount - 2) currentMip++;
+        }
+        if (currentT > maxDist) break;
+    }
+    imageStore(imgOutput, texCoords, vec4(mix(1.0, shadowIntensity, fadeFactor)));
+}

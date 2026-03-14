@@ -1,0 +1,146 @@
+﻿#version 430 core
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+// Сюда мы запишем только отраженный (непрямой) свет
+layout(rgba16f, binding = 0) writeonly uniform image2D imgOutput;
+
+// Входные данные
+uniform sampler2D gDepth;
+uniform sampler2D gNormalRoughness;
+// directLightTex - это текстура, в которую только что отработал твой основной шейдер освещения
+uniform sampler2D directLightTex; 
+uniform sampler2D noiseTexture;
+
+uniform mat4 invViewProj;
+uniform mat4 projectionMatrix;
+uniform vec3 camPos;
+uniform float time;
+
+// Настройки RTGI
+uniform int rtgiRays = 4;        // Количество лучей на пиксель (4-8 для начала отлично)
+uniform int rtgiSteps = 12;      // Длина шага луча
+uniform float rtgiRadius = 5.0;  // Как далеко свет может отскочить (в метрах)
+uniform float rtgiThickness = 0.5; // Допуск при столкновении луча
+
+const float PI = 3.14159265359;
+
+// --- Базовые функции восстановления ---
+vec3 ReconstructWorldPos(vec2 uv, float depth) {
+    vec4 ndc = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+    vec4 worldPos = invViewProj * ndc;
+    return worldPos.xyz / worldPos.w;
+}
+
+vec2 worldPosToUV(vec3 worldPos) {
+    vec4 projected = projectionMatrix * vec4(worldPos, 1.0);
+    return (projected.xy / projected.w) * 0.5 + 0.5;
+}
+
+// --- Генерация случайного направления в полусфере (Cosine-Weighted) ---
+// Это математика, которая заставляет лучи лететь правильно (больше лучей прямо, меньше вдоль стены)
+vec3 GetCosHemisphereSample(float u1, float u2, vec3 N) {
+    float r = sqrt(u1);
+    float theta = 2.0 * PI * u2;
+    
+    vec3 p = vec3(r * cos(theta), r * sin(theta), sqrt(max(0.0, 1.0 - u1)));
+    
+    // Создаем базис вокруг нормали
+    vec3 up = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+    vec3 tangent = normalize(cross(up, N));
+    vec3 bitangent = cross(N, tangent);
+    
+    return tangent * p.x + bitangent * p.y + N * p.z;
+}
+
+// Псевдорандом на основе пикселя и времени (чтобы шум шумел и сглаживался потом)
+float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+void main() {
+    ivec2 texCoords = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 imgSize = imageSize(imgOutput);
+    if(texCoords.x >= imgSize.x || texCoords.y >= imgSize.y) return;
+
+    vec2 uv = (vec2(texCoords) + 0.5) / vec2(imgSize);
+    float depth = texture(gDepth, uv).r;
+
+    // Небо не излучает вторичный свет таким способом
+    if (depth >= 0.9999) {
+        imageStore(imgOutput, texCoords, vec4(0.0));
+        return;
+    }
+
+    vec3 worldPos = ReconstructWorldPos(uv, depth);
+    vec3 N = texture(gNormalRoughness, uv).rgb;
+    if (length(N) < 0.1) {
+        imageStore(imgOutput, texCoords, vec4(0.0));
+        return;
+    }
+    N = normalize(N);
+
+    // Сид для рандома: координаты пикселя + время
+    vec2 randSeed = uv + fract(time);
+    
+    vec3 totalIndirectLight = vec3(0.0);
+    float stepDist = rtgiRadius / float(rtgiSteps);
+
+    // Запускаем лучи!
+    for (int ray = 0; ray < rtgiRays; ray++) {
+        // Генерируем два случайных числа для направления луча
+        float u1 = hash(randSeed + vec2(ray, 1.0));
+        float u2 = hash(randSeed + vec2(ray, 2.0));
+        
+        vec3 rayDir = GetCosHemisphereSample(u1, u2, N);
+        
+        // Отступ от поверхности, чтобы не врезаться в себя (Acne)
+        vec3 rayOrigin = worldPos + N * 0.1;
+        float currentT = stepDist * (u1 + 1.0); // Сдвигаем старт (Dither)
+        
+        vec3 bounceColor = vec3(0.0);
+
+        // Ray Marching (Шагаем лучом)
+        for (int i = 0; i < rtgiSteps; i++) {
+            vec3 sampleWorldPos = rayOrigin + rayDir * currentT;
+            vec2 sampleUV = worldPosToUV(sampleWorldPos);
+
+            // Если луч улетел за экран - прерываем
+            if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0) break;
+
+            float hitDepthNDC = texture(gDepth, sampleUV).r;
+            // Пропускаем небо
+            if (hitDepthNDC >= 0.9999) {
+                currentT += stepDist;
+                continue;
+            }
+
+            vec3 hitWorldPos = ReconstructWorldPos(sampleUV, hitDepthNDC);
+            
+            // Проверка столкновения: Если глубина луча больше реальной глубины, и они близко друг к другу
+            float distToHit = distance(hitWorldPos, sampleWorldPos);
+            
+            // Если мы ЗА поверхностью, но не слишком глубоко (чтобы не считывать объекты, которые далеко позади)
+            vec3 toCamera = normalize(camPos - hitWorldPos);
+            float viewDepthDiff = dot(toCamera, (sampleWorldPos - hitWorldPos));
+
+            if (viewDepthDiff > 0.0 && viewDepthDiff < rtgiThickness) {
+                // БИНГО! Луч врезался в стену. Берем её цвет (Прямой свет)
+                bounceColor = texture(directLightTex, sampleUV).rgb;
+                
+                // Можем слегка ослабить цвет в зависимости от расстояния отскока
+                float attenuation = 1.0 - clamp(currentT / rtgiRadius, 0.0, 1.0);
+                bounceColor *= attenuation;
+                break;
+            }
+            currentT += stepDist;
+        }
+        
+        totalIndirectLight += bounceColor;
+    }
+
+    // Усредняем свет от всех лучей
+    totalIndirectLight /= float(rtgiRays);
+
+    // Сохраняем непрямой свет
+    imageStore(imgOutput, texCoords, vec4(totalIndirectLight, 1.0));
+}

@@ -1,0 +1,95 @@
+﻿#version 430 core
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+// Используем r16f для одного канала (SSAO)
+layout(r16f, binding = 0) writeonly uniform image2D imgOutput;
+
+uniform sampler2D normalTexture;
+uniform sampler2D depthTexture; // Читаем глубину вместо позиции
+uniform sampler2D texNoise;
+
+uniform vec3 samples[64]; 
+uniform mat4 projection;
+uniform mat4 view;
+uniform mat4 invViewProj; // Обратная матрица для позиций
+
+uniform vec2 noiseScale;
+uniform bool enableSSAO;
+uniform float radius;
+uniform float bias;
+uniform float intensity;
+uniform float power;
+
+// Функция восстановления позиции
+vec3 ReconstructWorldPos(vec2 uv, float depth) {
+    vec4 ndc = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+    vec4 worldPos = invViewProj * ndc;
+    return worldPos.xyz / worldPos.w;
+}
+
+void main() {
+    ivec2 texCoords = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 imgSize = imageSize(imgOutput);
+    if(texCoords.x >= imgSize.x || texCoords.y >= imgSize.y) return;
+
+    if (!enableSSAO) { 
+        imageStore(imgOutput, texCoords, vec4(1.0)); 
+        return; 
+    }
+
+    vec2 uv = (vec2(texCoords) + 0.5) / vec2(imgSize);
+    float depth = texture(depthTexture, uv).r;
+
+    if (depth >= 0.9999) { // Небо
+        imageStore(imgOutput, texCoords, vec4(1.0)); 
+        return; 
+    }
+
+    vec3 worldPos = ReconstructWorldPos(uv, depth);
+    vec3 normalOrig = texture(normalTexture, uv).rgb;
+    
+    if (length(normalOrig) < 0.1) { 
+        imageStore(imgOutput, texCoords, vec4(1.0)); 
+        return; 
+    }
+
+    vec3 fragPos = (view * vec4(worldPos, 1.0)).xyz;
+    vec3 normal = normalize(mat3(view) * normalOrig);
+    fragPos += normal * 0.1; 
+
+    vec3 randomVec = normalize(texture(texNoise, uv * noiseScale).xyz);
+    vec3 tangent = normalize(randomVec - normal * dot(randomVec, normal));
+    vec3 bitangent = cross(normal, tangent);
+    mat3 TBN = mat3(tangent, bitangent, normal);
+    
+    float occlusion = 0.0;
+    float validSamples = 0.0;     
+    int sampleCount = 24; 
+    
+    for(int i = 0; i < sampleCount; ++i) {
+        vec3 samplePos = TBN * samples[i]; 
+        samplePos = fragPos + samplePos * radius; 
+        
+        vec4 offset = vec4(samplePos, 1.0);
+        offset = projection * offset;
+        offset.xyz /= offset.w;
+        offset.xyz = offset.xyz * 0.5 + 0.5;
+        
+        float sampleDepthRaw = texture(depthTexture, offset.xy).r;
+        vec3 sampleWorldPos = ReconstructWorldPos(offset.xy, sampleDepthRaw);
+        float sampleDepth = (view * vec4(sampleWorldPos, 1.0)).z;
+
+        float zDiff = abs(fragPos.z - sampleDepth);
+        if (zDiff > radius) continue; 
+        
+        validSamples += 1.0; 
+        float rangeCheck = smoothstep(0.0, 1.0, radius / zDiff);
+        occlusion += (sampleDepth >= samplePos.z + bias ? 1.0 : 0.0) * rangeCheck;      
+    }
+    
+    float shadowFactor = (validSamples > 0.0) ? (occlusion / validSamples) : 0.0;
+    shadowFactor *= intensity;
+    float res = clamp(pow(max(1.0 - shadowFactor, 0.0), power), 0.2, 1.0);
+    
+    imageStore(imgOutput, texCoords, vec4(res));
+}

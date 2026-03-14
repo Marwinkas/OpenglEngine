@@ -1,0 +1,24 @@
+﻿#version 430 core
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(rgba16f, binding = 0) writeonly uniform image2D imgOutput;
+uniform sampler2D screenTexture;
+uniform float threshold;
+uniform vec2 targetSize; // <-- ФИКС: Явный размер текстуры
+
+void main() {
+    ivec2 texCoords = ivec2(gl_GlobalInvocationID.xy);
+    
+    // Защита от выхода за границы
+    if(texCoords.x >= int(targetSize.x) || texCoords.y >= int(targetSize.y)) return;
+
+    vec2 uv = (vec2(texCoords) + 0.5) / targetSize;
+    vec3 color = texture(screenTexture, uv).rgb;
+    
+    float brightness = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    
+    if(brightness > threshold)
+        imageStore(imgOutput, texCoords, vec4(color, 1.0));
+    else
+        imageStore(imgOutput, texCoords, vec4(0.0, 0.0, 0.0, 1.0));
+}

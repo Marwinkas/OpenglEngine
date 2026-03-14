@@ -13,11 +13,11 @@ void Camera::updateMatrix(float FOVdeg, float nearPlane, float farPlane)
     glm::mat4 view = GetViewMatrix();
 
     // Считаем матрицу с TAA тряской
-    glm::mat4 projJitter = GetProjectionMatrix(FOVdeg, nearPlane, farPlane, true);
+    glm::mat4 projJitter = GetProjectionMatrix(FOVdeg, nearPlane, farPlane);
     viewProjectionMatrix = projJitter * view;
 
     // Считаем чистую матрицу
-    glm::mat4 projClean = GetProjectionMatrix(FOVdeg, nearPlane, farPlane, false);
+    glm::mat4 projClean = GetProjectionMatrix(FOVdeg, nearPlane, farPlane);
     cleanViewProjectionMatrix = projClean * view;
 }
 

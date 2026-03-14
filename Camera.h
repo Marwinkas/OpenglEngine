@@ -49,19 +49,9 @@ public:
     void Matrix(Shader& shader, const char* uniform);
     // 1. МАТРИЦА ПРОЕКЦИИ (Перспектива, FOV, Near/Far)
     bool IsSphereInFrustum(const glm::vec4* planes, const glm::vec3& center, float radius);
-    glm::mat4 GetProjectionMatrix(float FOVdeg, float nearPlane, float farPlane, bool applyJitter = true)
+    glm::mat4 GetProjectionMatrix(float FOVdeg, float nearPlane, float farPlane)
     {
         glm::mat4 proj = glm::perspective(glm::radians(FOVdeg), (float)width / (float)height, nearPlane, farPlane);
-        if (applyJitter) {
-            const float jitterX[8] = { 0.125f, -0.375f, 0.625f, -0.875f, 0.375f, -0.125f, 0.875f, -0.625f };
-            const float jitterY[8] = { 0.111f, -0.555f, 0.777f, -0.111f, -0.777f, 0.555f, -0.333f, 0.333f };
-
-            float deltaX = jitterX[taaFrameIndex % 8] - 0.5f;
-            float deltaY = jitterY[taaFrameIndex % 8] - 0.5f;
-
-            proj[2][0] += (deltaX * 2.0f) / (float)width;
-            proj[2][1] += (deltaY * 2.0f) / (float)height;
-        }
         return proj;
     }
 

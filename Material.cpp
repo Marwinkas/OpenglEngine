@@ -16,10 +16,9 @@ std::string getExecutablePath()
 	return path;
 }
 MaterialGPUData Material::getGPUData() {
-    MaterialGPUData data;
+    // СКОБКИ ОБЯЗАТЕЛЬНЫ! Они заполняют всю структуру (и отступы) чистыми нулями.
+    MaterialGPUData data = {};
 
-    // --- ЗАЩИТА ОТ КРАША ---
-    // Передаем хэндл, только если он уже загрузился (не равен 0)
     data.albedoHandle = (hasalbedo && albedo.handle != 0) ? albedo.handle : 0;
     data.normalHandle = (hasnormal && normal.handle != 0) ? normal.handle : 0;
     data.heightHandle = (hasheight && height.handle != 0) ? height.handle : 0;
@@ -27,7 +26,6 @@ MaterialGPUData Material::getGPUData() {
     data.roughnessHandle = (hasroughness && roughness.handle != 0) ? roughness.handle : 0;
     data.aoHandle = (hasao && ao.handle != 0) ? ao.handle : 0;
 
-    // Шейдер будет использовать текстуру ТОЛЬКО если она уже загружена в VRAM
     data.hasAlbedo = (hasalbedo && albedo.handle != 0) ? 1 : 0;
     data.hasNormal = (hasnormal && normal.handle != 0) ? 1 : 0;
     data.hasHeight = (hasheight && height.handle != 0) ? 1 : 0;
