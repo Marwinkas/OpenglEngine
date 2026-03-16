@@ -58,7 +58,7 @@ public:
 };
 class CullingShader : public Shader {
 public:
-
+    Shader csmCullingShader;
     struct {
         GLint isShadowPass, camPos, lodDistances,objectCount, viewProjection, screenSize, hiZTexture;
         GLint lodCount[3];
@@ -89,7 +89,7 @@ public:
         loc.viewProjection = GetLoc("viewProjection");
         loc.screenSize = GetLoc("screenSize");
         loc.hiZTexture = GetLoc("hiZTexture");
-        
+        csmCullingShader = Shader("csm_culling.comp");
 
     }
     LightCullingShader lightCullingShader;

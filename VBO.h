@@ -17,13 +17,12 @@ inline uint32_t PackNormalTo10_10_10_2(glm::vec3 normal) {
 	// Встроенный упаковщик GLM (идеально переводит в GL_INT_2_10_10_10_REV)
 	return glm::packSnorm3x10_1x2(glm::vec4(normal, 0.0f));
 }
-struct Vertex
-{
-	glm::vec3 position = glm::vec3(0.0f);
-	uint32_t normal = 0;
-	uint32_t texUV = 0;
-	uint32_t tangent = 0;
-	uint32_t bitangent = 0;
+struct Vertex {
+    glm::vec3 position;   // 12 байт
+    glm::vec3 normal;     // 12 байт  
+    glm::vec2 texUV;      // 8 байт
+    glm::vec3 tangent;    // 12 байт
+    glm::vec3 bitangent;  // 12 байт
 };
 class VBO
 {

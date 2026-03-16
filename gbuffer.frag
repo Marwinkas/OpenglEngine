@@ -3,11 +3,14 @@
 
 layout (location = 0) out vec4 gNormalRoughness;
 layout (location = 1) out vec4 gAlbedoMetallic;
+layout (location = 2) out vec4 gHeightAO; 
 
 in vec3 crntPos;
-in vec3 Normal;
 in vec2 texCoord;
 in mat3 TBN;
+
+// ЭТУ ПЕРЕМЕННУЮ ТЫ УЖЕ ПЕРЕДАЕШЬ ИЗ C++!
+uniform vec3 camPos; 
 
 struct MaterialData {
     sampler2D albedoHandle;
@@ -24,10 +27,8 @@ struct MaterialData {
     int hasAO;
     int useTriplanar; 
     float triplanarScale; 
-    
-    // ВАЖНО: vec4 весит ровно 16 байт, как и наш float padding[4] в C++!
-    // Общий размер структуры в видеокарте теперь ровно 96 байт.
-    vec4 padding; 
+    vec2 uvScale;  
+    vec2 padding;  
 };
 
 layout(std430, binding = 2) readonly buffer MaterialBlock {
@@ -38,41 +39,44 @@ flat in uint matID;
 
 void main() {
     MaterialData mat = materials[matID];
-    
-    // БАЗОВЫЕ ЗНАЧЕНИЯ (Если текстуры нет или она еще грузится)
-    vec3 albedo = vec3(0.8);
-    float metallic = 0.0;
-    float roughness = 0.9;
-    vec3 worldNormal = normalize(Normal);
+    vec2 scaledUV = texCoord * mat.uvScale;
+    vec2 finalUV  = scaledUV;
 
-    // ЧИТАЕМ ТЕКСТУРЫ ТОЛЬКО ЕСЛИ ОНИ ГОТОВЫ (has... == 1)
-    if (mat.hasAlbedo == 1) {
-        albedo = texture(mat.albedoHandle, texCoord).rgb;
+    vec3 N = normalize(TBN[2]);
+    vec3 T = normalize(TBN[0]);
+    T = normalize(T - dot(T, N) * N);
+    vec3 B = cross(N, T);
+    mat3 finalTBN = mat3(T, B, N);
+
+    float height   = 0.0;
+    vec3  albedo   = vec3(0.8);
+    float metallic = 0.0;
+    float roughness= 0.9;
+    float ao       = 1.0;
+    vec3  worldNormal = N;
+
+    if (mat.hasHeight == 1) {
+        vec3 viewDirWorld   = normalize(camPos - crntPos);
+        vec3 viewDirTangent = normalize(transpose(finalTBN) * viewDirWorld);
+        height  = texture(mat.heightHandle, scaledUV).r;
+        finalUV = scaledUV - viewDirTangent.xy * (height * 0.02);
+        height  = texture(mat.heightHandle, finalUV).r;
     }
-    
-    if (mat.hasMetallic == 1) {
-        metallic = texture(mat.metallicHandle, texCoord).r;
-    }
-    
-    if (mat.hasRoughness == 1) {
-        roughness = texture(mat.roughnessHandle, texCoord).r;
-    }
+
+    if (mat.hasAlbedo    == 1) albedo    = texture(mat.albedoHandle,    finalUV).rgb;
+    if (mat.hasMetallic  == 1) metallic  = texture(mat.metallicHandle,  finalUV).r;
+    if (mat.hasRoughness == 1) roughness = texture(mat.roughnessHandle, finalUV).r;
+    if (mat.hasAO        == 1) ao        = texture(mat.aoHandle,        finalUV).r;
 
     if (mat.hasNormal == 1) {
-        vec3 rawNorm = texture(mat.normalHandle, texCoord).rgb;
-        // Защита: если текстура еще не прогрузилась и отдает чистый черный (0,0,0)
-        if (length(rawNorm) > 0.01) {
-            vec3 tangentNormal = rawNorm * 2.0 - 1.0;
-            worldNormal = normalize(TBN * tangentNormal);
-        }
+        vec2 rg = texture(mat.normalHandle, finalUV).rg;
+        vec3 tangentNormal;
+        tangentNormal.xy = rg * 2.0 - 1.0;
+        tangentNormal.z  = sqrt(max(0.0, 1.0 - dot(tangentNormal.xy, tangentNormal.xy)));
+        worldNormal = normalize(finalTBN * tangentNormal);
     }
 
-    // ФИНАЛЬНАЯ БРОНЯ ОТ ЧЕРНЫХ ПЯТЕН:
-    // Если какая-то математика выдала NaN (ошибку) или нулевой вектор
-    if (isnan(worldNormal.x) || isnan(worldNormal.y) || isnan(worldNormal.z) || length(worldNormal) < 0.1) {
-        worldNormal = normalize(Normal); // Откатываемся к родной нормали полигона!
-    }
-    // ЗАПИСЬ В G-BUFFER
     gNormalRoughness = vec4(worldNormal, roughness);
-    gAlbedoMetallic = vec4(albedo, metallic); 
+    gAlbedoMetallic  = vec4(albedo, metallic);
+    gHeightAO        = vec4(height, ao, 0.0, 1.0);
 }

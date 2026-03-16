@@ -301,5 +301,9 @@
     <None Include="rtgi.comp">
       <Filter>Resource Files\Shaders\graphic</Filter>
     </None>
+    <None Include="ssr.comp" />
+    <None Include="csm_culling.comp">
+      <Filter>Resource Files\Shaders\optimization</Filter>
+    </None>
   </ItemGroup>
 </Project>

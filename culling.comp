@@ -35,8 +35,8 @@ void main() {
     // Это компенсирует смещенный центр модели (Pivot).
     // Теперь куб не будет исчезать, когда ты смотришь вверх!
     // =========================================================
-    float safeRadius = radius * 2.5;
-    float cullingRadius = isShadowPass ? (safeRadius * 2.0) : safeRadius;
+
+    float cullingRadius = isShadowPass ? (radius * 2.0) : radius;
     
     // 1. Frustum Culling
     for (int i = 0; i < 6; i++) {
@@ -46,17 +46,43 @@ void main() {
         }
     }
     
-    // =========================================================
-    // ФИКС 2: ВРЕМЕННО ОТКЛЮЧИЛИ HI-Z КУЛЛИНГ
-    // Из-за рассинхрона мипмапов он мог случайно скрывать 2-й куб.
-    // Если после этого моргание пропадет — значит виноват был он!
-    // =========================================================
-    /*
-    if (isVisible && !isShadowPass) {
-        // ... (Старый код Hi-Z закомментирован) ...
-    }
-    */
+if (isVisible && !isShadowPass) {
+    vec4 clipPos = viewProjection * vec4(pos, 1.0);
     
+    if (clipPos.w > 0.001) {  // защита от деления на ноль
+        vec3 ndc = clipPos.xyz / clipPos.w;
+        
+        // Объект полностью за камерой — не culling'им
+        if (ndc.z <= 1.0) {
+            float ndcRadius = cullingRadius / clipPos.w;
+            
+            vec2 uvMin = clamp((ndc.xy - ndcRadius) * 0.5 + 0.5, vec2(0.0), vec2(1.0));
+            vec2 uvMax = clamp((ndc.xy + ndcRadius) * 0.5 + 0.5, vec2(0.0), vec2(1.0));
+            
+            // Размер области в пикселях -> выбор мипа
+            vec2 sizePixels = (uvMax - uvMin) * screenSize;
+            float mipLevel  = clamp(ceil(log2(max(max(sizePixels.x, sizePixels.y), 1.0))), 0.0, 8.0);
+            
+            // 4 угла + центр
+            float hiZDepth = max(
+                max(textureLod(hiZTexture, uvMin, mipLevel).r,
+                    textureLod(hiZTexture, uvMax, mipLevel).r),
+                max(textureLod(hiZTexture, vec2(uvMin.x, uvMax.y), mipLevel).r,
+                    textureLod(hiZTexture, vec2(uvMax.x, uvMin.y), mipLevel).r)
+            );
+            
+            // Ближайшая точка сферы в NDC depth
+            float sphereFrontDepth = (ndc.z - ndcRadius);
+            sphereFrontDepth = sphereFrontDepth * 0.5 + 0.5; // NDC -> [0,1]
+            
+            // Если передняя грань сферы дальше Hi-Z -> объект скрыт
+            // Добавляем epsilon чтобы не culling'ить объекты на грани
+            if (sphereFrontDepth > hiZDepth + 0.002) {
+                isVisible = false;
+            }
+        }
+    }
+}
     // 3. Выбор ЛОДа
     if (isVisible) {
         commands[globalIdx].instanceCount = 1;

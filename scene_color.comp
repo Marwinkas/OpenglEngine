@@ -8,19 +8,52 @@ uniform sampler2D normalTexture;
 uniform sampler2D ssaoTexture;    
 uniform sampler2D sscsTexture;
 uniform sampler3D volumetricFogTex;
-
+const int VOXEL_X = 80;  // было 160
+const int VOXEL_Y = 45;  // было 90
+const int VOXEL_Z = 64;
 // НОВЫЕ ТЕКСТУРЫ ДЛЯ RTGI
 uniform sampler2D rtgiTexture;   // Отраженный свет (отскоки)
 uniform sampler2D albedoTexture; // Базовый цвет объектов (чтобы красить свет)
-
+uniform float fogZFarScene; // = 100.0
 uniform int hasSSAO;
 uniform int enableFog;
 uniform int enableChromaticAberration;
 uniform float caIntensity;
-
+uniform vec3 camPos;
 uniform mat4 invViewProj;
 uniform mat4 viewMatrix;
+uniform float fogDensity;
+uniform vec3 fogColor;
+uniform float fogZNear; // = 0.1
+uniform float fogZFar;  // = 100.0
+// Добавь uniform-ы вверху шейдера:
+uniform float fogBaseHeight;
+uniform float fogHeightFalloff;
+uniform sampler2D ssrTexture;
+uniform int enableSSR;
 
+// Аналитический интеграл высотного тумана вдоль луча
+// Считает оптическую глубину от точки A до точки B
+float HeightFogOpticalDepth(vec3 start, vec3 end) {
+    float h0 = start.y - fogBaseHeight;
+    float h1 = end.y   - fogBaseHeight;
+    float rayLen = length(end - start);
+
+    // Если луч горизонтальный — прямое произведение
+    if (abs(h1 - h0) < 0.001)
+        return fogDensity * exp(-max(h0, 0.0) * fogHeightFalloff) * rayLen;
+
+    // Аналитический интеграл exp(-h*k) вдоль наклонного луча
+    float k = fogHeightFalloff;
+
+    // Интегрируем только участок луча ниже fogBaseHeight + выше
+    // Упрощённый вариант: среднее значение density * длину
+    float dStart = fogDensity * exp(-max(h0, 0.0) * k);
+    float dEnd   = fogDensity * exp(-max(h1, 0.0) * k);
+    float avgDensity = (dStart + dEnd) * 0.5;
+
+    return avgDensity * rayLen;
+}
 vec3 ReconstructWorldPos(vec2 uv, float depth) {
     vec4 ndc = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
     vec4 worldPos = invViewProj * ndc;
@@ -53,6 +86,11 @@ void main() {
 
         // МЕЙДЖИК: Читаем отскоки света и умножаем их на цвет предмета
         vec3 indirectLight = texture(rtgiTexture, uv).rgb;
+        if (depth < 0.9999) {
+            vec4 ssrData = texture(ssrTexture, uv);
+            // ssrData.rgb = цвет отражения, ssrData.a = сила
+            color += ssrData.rgb * ssrData.a;
+        }
         vec3 albedo = texture(albedoTexture, uv).rgb;
         
         // Прибавляем непрямой свет к основному
@@ -62,15 +100,40 @@ void main() {
         color = color * sscs * ssao; 
     }
 
-    if (enableFog == 1) {
-        vec3 worldPos = ReconstructWorldPos(uv, depth);
-        float fogZNear = 0.1; float fogZFar = 100.0;
-        float viewZ = (depth >= 0.9999) ? -fogZFar : min((viewMatrix * vec4(worldPos, 1.0)).z, -fogZNear);
-        float sliceZ = clamp(log(viewZ / -fogZNear) / log(fogZFar / fogZNear), 0.0, 1.0);
-        
-        vec4 fogData = texture(volumetricFogTex, vec3(uv, sliceZ));
-        if (!isnan(fogData.a) && !isnan(fogData.r)) color = color * fogData.a + fogData.rgb;
+// В scene_color.comp временно:
+    // ТУМАН — применяется ко ВСЕМУ включая небо
+if (enableFog == 1) {
+    float linearZ;
+    if (depth >= 0.9999) {
+        linearZ = fogZFar * 0.98;
+    } else {
+        vec3 wp = ReconstructWorldPos(uv, depth);
+        vec4 vp = viewMatrix * vec4(wp, 1.0);
+        linearZ = clamp(-vp.z, fogZNear, fogZFar);
     }
+
+    float sliceZ = log(linearZ / fogZNear) / log(fogZFar / fogZNear);
+    sliceZ = clamp(sliceZ, 0.001, 0.999);
+
+    ivec3 voxelCoord = ivec3(
+        int(uv.x * float(VOXEL_X)),
+        int(uv.y * float(VOXEL_Y)),
+        int(sliceZ * float(VOXEL_Z))
+    );
+    voxelCoord = clamp(voxelCoord, ivec3(0), ivec3(VOXEL_X-1, VOXEL_Y-1, VOXEL_Z-1));
+
+    vec3 fogUVW = vec3(
+    uv.x,
+     uv.y,  // или uv.y — то что работало
+    sliceZ
+    );
+    vec4 fogData = texture(volumetricFogTex, fogUVW);
+
+    float transmittance = clamp(fogData.a, 0.0, 1.0);
+    vec3  scatter       = clamp(fogData.rgb, vec3(0.0), vec3(5.0));
+
+    color = color * transmittance + scatter;
+}
 
     imageStore(imgOutput, texCoords, vec4(color, 1.0));
 }

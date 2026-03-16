@@ -31,5 +31,6 @@ public:
     bool needsShadowUpdate = true; 
     glm::mat4 lightSpaceMatrix = glm::mat4(1.0f);
     int shadowSlot = -1;
+    int shadowTileSize = 512;
 };
 #endif

@@ -112,9 +112,11 @@ public:
     unsigned int postProcessingTexture, postNormalTexture, postPositionTexture, gNormalTexResolved, gAlbedoTexResolved, postDepthTexture;
     unsigned int ssgiFBO, ssgiTexture;
     unsigned int ssaoFBO, ssaoTexture;
+    unsigned int ssrTexture;
     unsigned int ssaoNoiseTexture;
     RenderTargetPool rtPool;
     Shader hiZShader;
+    Shader ssrShader;
     Shader SCSSShader;
     Shader SceneColorShader;
     Shader PostProcessShader;

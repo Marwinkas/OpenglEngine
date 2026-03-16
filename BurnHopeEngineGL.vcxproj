@@ -162,7 +162,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>TRACY_ENABLE;_CRT_SECURE_NO_WARNINGS;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>JPH_FLOATING_POINT_EXCEPTIONS_ENABLED;JPH_OBJECT_STREAM;JPH_PROFILE;TRACY_ENABLE;_CRT_SECURE_NO_WARNINGS;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
@@ -236,6 +236,7 @@
     <None Include="C:\Users\Marwinka\Desktop\voxel_mipmap.comp" />
     <None Include="cluster_grid.comp" />
     <None Include="combine.frag" />
+    <None Include="csm_culling.comp" />
     <None Include="culling.comp" />
     <None Include="gbuffer.vert" />
     <None Include="gbuffer.frag" />
@@ -254,6 +255,7 @@
     <None Include="shadowMap.vert" />
     <None Include="ssao_blur.comp" />
     <None Include="sscs.comp" />
+    <None Include="ssr.comp" />
     <None Include="volumetric_accumulate.comp" />
     <None Include="volumetric_inject.comp" />
     <None Include="voxelize.frag" />

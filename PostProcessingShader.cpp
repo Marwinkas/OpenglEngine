@@ -41,9 +41,13 @@ PostProcessingShader::PostProcessingShader(Window& window) {
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    std::vector<float> emptyFog(160 * 90 * 64 * 4, 0.0f);
-    glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA16F, 160, 90, 64, 0, GL_RGBA, GL_FLOAT, emptyFog.data());
+    std::vector<float> clearFog(80 * 45 * 64 * 4, 0.0f);
+    for (int i = 3; i < clearFog.size(); i += 4)
+        clearFog[i] = 1.0f; // alpha = 1.0 = нет тумана
+    glBindTexture(GL_TEXTURE_3D, volumeTexture);
+    glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA16F, 80, 45, 64, 0, GL_RGBA, GL_FLOAT, clearFog.data());
 
+    // Замени инициализацию accumVolumeTexture:
     glGenTextures(1, &accumVolumeTexture);
     glBindTexture(GL_TEXTURE_3D, accumVolumeTexture);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -51,7 +55,15 @@ PostProcessingShader::PostProcessingShader(Window& window) {
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA16F, 160, 90, 64, 0, GL_RGBA, GL_FLOAT, emptyFog.data());
+    // PostProcessingShader.cpp — после glTexImage3D для accumVolumeTexture
+    // Заполни нулями RGB и 1.0 в alpha (transmittance=1 = нет тумана)
+    std::vector<float> clearAccum(80 * 45 * 64 * 4, 0.0f);
+    for (int i = 3; i < (int)clearAccum.size(); i += 4)
+        clearAccum[i] = 1.0f; // transmittance = 1.0 = прозрачно
+
+    glBindTexture(GL_TEXTURE_3D, accumVolumeTexture);
+    glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA16F, 80, 45, 64, 0,
+        GL_RGBA, GL_FLOAT, clearAccum.data());
 
     // =================================================================
     // 3. SSAO ДАННЫЕ (Ядро и Шум)
@@ -128,6 +140,15 @@ PostProcessingShader::PostProcessingShader(Window& window) {
     // =================================================================
     // 7. СГЛАЖИВАНИЕ TAA (Хранит кадры, поэтому тоже постоянна)
     // =================================================================
+    ssrShader = Shader("ssr.comp");
+
+    glGenTextures(1, &ssrTexture);
+    glBindTexture(GL_TEXTURE_2D, ssrTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, window.width, window.height, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
@@ -248,7 +269,8 @@ void PostProcessingShader::Update(Window& window, float crntTime, Camera& camera
     glUniform3f(glGetUniformLocation(SCSSShader.ID, "sunDirFog"), sunDir.x, sunDir.y, sunDir.z);
     glUniformMatrix4fv(glGetUniformLocation(SCSSShader.ID, "invViewProj"), 1, GL_FALSE, glm::value_ptr(invViewProj));
     glUniformMatrix4fv(glGetUniformLocation(SCSSShader.ID, "projectionMatrix"), 1, GL_FALSE, glm::value_ptr(projection));
-
+    glUniformMatrix4fv(glGetUniformLocation(SCSSShader.ID, "viewMatrix"), 1, GL_FALSE, glm::value_ptr(view));
+    // В PostProcessingShader::Update перед dispatch SSCS:
     glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, gDepth);
     glUniform1i(glGetUniformLocation(SCSSShader.ID, "depthTexture"), 0);
     glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, gNormalRoughness);
@@ -267,21 +289,56 @@ void PostProcessingShader::Update(Window& window, float crntTime, Camera& camera
     // ==========================================
     if (ui.ppSettings.enableFog) {
         volInjectShader.Activate();
-        glUniformMatrix4fv(glGetUniformLocation(volInjectShader.ID, "invViewProj"), 1, GL_FALSE, glm::value_ptr(invViewProj));
-        glUniform3fv(glGetUniformLocation(volInjectShader.ID, "camPos"), 1, glm::value_ptr(camera.Position));
         glBindBufferBase(GL_UNIFORM_BUFFER, 0, uboLights);
+        glUniformMatrix4fv(glGetUniformLocation(volInjectShader.ID, "invViewProj"),
+            1, GL_FALSE, glm::value_ptr(invViewProj));
+        glUniformMatrix4fv(glGetUniformLocation(volInjectShader.ID, "invProj"),
+            1, GL_FALSE, glm::value_ptr(glm::inverse(projection)));
+        glUniformMatrix4fv(glGetUniformLocation(volInjectShader.ID, "invView"),
+            1, GL_FALSE, glm::value_ptr(glm::inverse(view)));
+        glUniform3fv(glGetUniformLocation(volInjectShader.ID, "camPos"),
+            1, glm::value_ptr(camera.Position));
+        glUniform1f(glGetUniformLocation(volInjectShader.ID, "zNear"), 0.1f);
+        glUniform1f(glGetUniformLocation(volInjectShader.ID, "zFar"), 100.0f);
+
+        glUniform1f(glGetUniformLocation(volInjectShader.ID, "fogDensity"),
+            ui.ppSettings.fogDensity);
+        glUniform1f(glGetUniformLocation(volInjectShader.ID, "fogBaseHeight"),
+            ui.ppSettings.fogBaseHeight);
+        glUniform1f(glGetUniformLocation(volInjectShader.ID, "fogHeightFalloff"),
+            ui.ppSettings.fogHeightFalloff);
+        glUniform3fv(glGetUniformLocation(volInjectShader.ID, "fogColor"),
+            1, ui.ppSettings.fogColor);
+        glUniform3fv(glGetUniformLocation(volInjectShader.ID, "inscatterColor"),
+            1, ui.ppSettings.inscatterColor);
+        glUniform1f(glGetUniformLocation(volInjectShader.ID, "inscatterPower"),
+            ui.ppSettings.inscatterPower);
+        glUniform1f(glGetUniformLocation(volInjectShader.ID, "inscatterIntensity"),
+            ui.ppSettings.inscatterIntensity);
+        glUniform3f(glGetUniformLocation(volInjectShader.ID, "sunDir"),
+            sunDir.x, sunDir.y, sunDir.z);
+        glUniform1f(glGetUniformLocation(volInjectShader.ID, "time"), crntTime);
+
         glBindImageTexture(0, volumeTexture, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-        glDispatchCompute(20, 12, 8);
-        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+        glDispatchCompute(10, 6, 8);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT |
+            GL_TEXTURE_FETCH_BARRIER_BIT);
 
         volAccumulateShader.Activate();
-        glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_3D, volumeTexture);
+        glUniform1f(glGetUniformLocation(volAccumulateShader.ID, "zNear"), 0.1f);
+        glUniform1f(glGetUniformLocation(volAccumulateShader.ID, "zFar"), 100.0f);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_3D, volumeTexture);
         glUniform1i(glGetUniformLocation(volAccumulateShader.ID, "volumeTex"), 0);
         glBindImageTexture(0, accumVolumeTexture, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-        glDispatchCompute(20, 12, 1);
-        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+        glDispatchCompute(10, 6, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT |
+            GL_TEXTURE_FETCH_BARRIER_BIT);
     }
-
+    else {
+        glActiveTexture(GL_TEXTURE6);
+        glBindTexture(GL_TEXTURE_3D, 0); // отвязываем
+    }
 
     TransientRT rtgiRT = rtPool.Acquire(fullW, fullH, GL_RGBA16F);
     rtgiShader.Activate();
@@ -313,6 +370,30 @@ void PostProcessingShader::Update(Window& window, float crntTime, Camera& camera
     // ==========================================
     // 5. SCENE COLOR COMPOSITE (Склейка Света, Теней, Тумана)
     // ==========================================
+
+
+    // После SSCS, перед SceneColor:
+    TransientRT ssrRT = rtPool.Acquire(fullW, fullH, GL_RGBA16F);
+    ssrShader.Activate();
+    glUniformMatrix4fv(glGetUniformLocation(ssrShader.ID, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+    glUniformMatrix4fv(glGetUniformLocation(ssrShader.ID, "view"), 1, GL_FALSE, glm::value_ptr(view));
+    glUniformMatrix4fv(glGetUniformLocation(ssrShader.ID, "invViewProj"), 1, GL_FALSE, glm::value_ptr(invViewProj));
+    glUniform3f(glGetUniformLocation(ssrShader.ID, "camPos"), camera.Position.x, camera.Position.y, camera.Position.z);
+    glUniform2f(glGetUniformLocation(ssrShader.ID, "screenSize"), (float)fullW, (float)fullH);
+
+    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, gDepth);
+    glUniform1i(glGetUniformLocation(ssrShader.ID, "gDepth"), 0);
+    glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, gNormalRoughness);
+    glUniform1i(glGetUniformLocation(ssrShader.ID, "gNormalRoughness"), 1);
+    glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, hdrOutputTexture);
+    glUniform1i(glGetUniformLocation(ssrShader.ID, "sceneColorTex"), 2);
+    glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, gAlbedo);
+    glUniform1i(glGetUniformLocation(ssrShader.ID, "gAlbedoMetallic"), 3);
+
+    glBindImageTexture(0, ssrRT.Texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+    glDispatchCompute((fullW + 15) / 16, (fullH + 15) / 16, 1);
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
     TransientRT sceneColorRT = rtPool.Acquire(fullW, fullH, GL_RGBA16F);
     SceneColorShader.Activate();
     glUniform1i(glGetUniformLocation(SceneColorShader.ID, "hasSSAO"), (ssaoFinalTexture != 0));
@@ -334,18 +415,29 @@ void PostProcessingShader::Update(Window& window, float crntTime, Camera& camera
     glUniform1i(glGetUniformLocation(SceneColorShader.ID, "sscsTexture"), 4);
     glActiveTexture(GL_TEXTURE6); glBindTexture(GL_TEXTURE_3D, accumVolumeTexture);
     glUniform1i(glGetUniformLocation(SceneColorShader.ID, "volumetricFogTex"), 6);
-
+    glUniform1f(glGetUniformLocation(SceneColorShader.ID, "fogDensity"),
+        ui.ppSettings.fogDensity);
+    glUniform3fv(glGetUniformLocation(SceneColorShader.ID, "fogColor"),
+        1, ui.ppSettings.fogColor);
     // ПЕРЕДАЕМ НОВЫЕ ТЕКСТУРЫ ДЛЯ RTGI В SCENE COLOR
     glActiveTexture(GL_TEXTURE7); glBindTexture(GL_TEXTURE_2D, rtgiRT.Texture);
     glUniform1i(glGetUniformLocation(SceneColorShader.ID, "rtgiTexture"), 7);
+    glUniform1f(glGetUniformLocation(SceneColorShader.ID, "fogBaseHeight"), ui.ppSettings.fogBaseHeight);
+    glUniform1f(glGetUniformLocation(SceneColorShader.ID, "fogHeightFalloff"), ui.ppSettings.fogHeightFalloff);
 
+    // fogDensity и camPos уже передаются — проверь что они есть
     glActiveTexture(GL_TEXTURE8); glBindTexture(GL_TEXTURE_2D, gAlbedo); // Передаем цвет стены из G-Buffer!
     glUniform1i(glGetUniformLocation(SceneColorShader.ID, "albedoTexture"), 8);
+    glActiveTexture(GL_TEXTURE9); glBindTexture(GL_TEXTURE_2D, ssrRT.Texture);
+    glUniform1i(glGetUniformLocation(SceneColorShader.ID, "ssrTexture"), 9);
+    glUniform3f(glGetUniformLocation(SceneColorShader.ID, "camPos"),
 
+        camera.Position.x, camera.Position.y, camera.Position.z);
+    glUniform1f(glGetUniformLocation(SceneColorShader.ID, "fogZNear"), 0.1f);
+    glUniform1f(glGetUniformLocation(SceneColorShader.ID, "fogZFar"), 100.0f);
     glBindImageTexture(0, sceneColorRT.Texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
     glDispatchCompute((fullW + 15) / 16, (fullH + 15) / 16, 1);
     glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
-
     // ==========================================
     // 6. BLOOM (Вычисляется из уже готовой SceneColor)
     // ==========================================
@@ -437,6 +529,7 @@ void PostProcessingShader::Update(Window& window, float crntTime, Camera& camera
     glUniform1i(glGetUniformLocation(PostProcessShader.ID, "enableFilmGrain"), ui.ppSettings.enableFilmGrain);
     glUniform1f(glGetUniformLocation(PostProcessShader.ID, "grainIntensity"), ui.ppSettings.grainIntensity);
     glUniform1f(glGetUniformLocation(PostProcessShader.ID, "time"), crntTime);
+    // В блоке SceneColorShader.Activate():
 
     glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, sceneColorRT.Texture);
     glUniform1i(glGetUniformLocation(PostProcessShader.ID, "sceneColorTex"), 0);
@@ -454,6 +547,9 @@ void PostProcessingShader::Update(Window& window, float crntTime, Camera& camera
     // ==========================================
     // 8. TAA (Сглаживание - всё ещё на Fragment Shader, т.к. рисует в историю)
     // ==========================================
+   // ==========================================
+    // 8. ВЫВОД НА ЭКРАН (FXAA + Sharpen)
+    // ==========================================
     glBindFramebuffer(GL_FRAMEBUFFER, 0); // 0 = Монитор!
     glViewport(0, 0, window.width, window.height);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -462,11 +558,13 @@ void PostProcessingShader::Update(Window& window, float crntTime, Camera& camera
 
     sharpenShader.Activate();
     glActiveTexture(GL_TEXTURE0);
-
-    // БЕРЕМ КАРТИНКУ НАПРЯМУЮ ИЗ ФИНАЛЬНОГО COMPUTE PASS!
-    glBindTexture(GL_TEXTURE_2D, finalPPRT.Texture);
+    glBindTexture(GL_TEXTURE_2D, finalPPRT.Texture); // Твоя готовая картинка
 
     glUniform1i(glGetUniformLocation(sharpenShader.ID, "screenTexture"), 0);
+
+    // ПЕРЕДАЕМ РАЗМЕР ПИКСЕЛЯ ДЛЯ СГЛАЖИВАНИЯ!
+    glUniform2f(glGetUniformLocation(sharpenShader.ID, "texelSize"), 1.0f / fullW, 1.0f / fullH);
+
     float sharpness = ui.ppSettings.enableSharpen ? ui.ppSettings.sharpenIntensity : 0.0f;
     glUniform1f(glGetUniformLocation(sharpenShader.ID, "sharpenAmount"), sharpness);
 

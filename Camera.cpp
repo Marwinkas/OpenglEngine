@@ -38,59 +38,12 @@ bool Camera::IsSphereInFrustum(const glm::vec4* planes, const glm::vec3& center,
 }
 // --- СОЗДАНИЕ/УДАЛЕНИЕ ФИЗИКИ КАМЕРЫ ---
 void Camera::TogglePlayMode(PhysicsEngine& physics) {
-    isPlayMode = !isPlayMode;
-
-    if (isPlayMode) {
-        // ПЕРЕХОДИМ В ИГРУ: Создаем физическую капсулу вокруг камеры
-        physx::PxMaterial* mat = physics.physics->createMaterial(0.5f, 0.5f, 0.0f); // Без прыгучести!
-
-        // Капсула высотой 1.8м (радиус 0.4, половина высоты цилиндра 0.5)
-        physx::PxShape* shape = physics.physics->createShape(physx::PxCapsuleGeometry(0.4f, 2.5f), *mat);
-
-        // PhysX капсулы по умолчанию лежат на боку (по оси X). Поворачиваем её вертикально (по Y).
-        physx::PxTransform relativePose(physx::PxQuat(physx::PxHalfPi, physx::PxVec3(0, 0, 1)));
-        shape->setLocalPose(relativePose);
-
-        physx::PxTransform startTransform(physx::PxVec3(Position.x, Position.y, Position.z));
-        playerBody = physics.physics->createRigidDynamic(startTransform);
-        playerBody->attachShape(*shape);
-        physx::PxRigidBodyExt::updateMassAndInertia(*playerBody, 80.0f); // Вес человека 80 кг
-
-        // Запрещаем капсуле падать набок (блокируем вращение физикой)
-        playerBody->setRigidDynamicLockFlags(physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X |
-            physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Y |
-            physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z);
-
-        physics.scene->addActor(*playerBody);
-        shape->release();
-        mat->release();
-        std::cout << "Режим ИГРЫ включен! Физика игрока создана." << std::endl;
-    }
-    else {
-        // ПЕРЕХОДИМ В РЕДАКТОР: Удаляем физику
-        if (playerBody) {
-            physics.scene->removeActor(*playerBody);
-            playerBody->release();
-            playerBody = nullptr;
-        }
-        std::cout << "Режим РЕДАКТОРА включен! Свободный полет." << std::endl;
-    }
+  
 }
 
 // --- ОБНОВЛЕНИЕ ПОЗИЦИИ ИЗ PHYSX (Вызывать каждый кадр) ---
 void Camera::UpdatePhysics(float deltaTime) {
-    if (!isPlayMode || !playerBody) return;
-
-    // 1. Получаем координаты капсулы из Матрицы
-    physx::PxTransform transform = playerBody->getGlobalPose();
-
-    // 2. Ставим камеру на уровне глаз (чуть выше центра капсулы)
-    Position = glm::vec3(transform.p.x, transform.p.y + 0.6f, transform.p.z);
-
-    // 3. Простейшая проверка: стоим ли мы на земле? 
-    // (Если скорость по Y (вниз/вверх) почти нулевая, считаем что на полу)
-    physx::PxVec3 velocity = playerBody->getLinearVelocity();
-    isGrounded = (abs(velocity.y) < 0.1f);
+    
 }
 
 // --- УПРАВЛЕНИЕ (Вызывать каждый кадр) ---
@@ -128,35 +81,8 @@ void Camera::Inputs(GLFWwindow* window, float deltaTime)
 
     // --- ДВИЖЕНИЕ ---
     if (isPlayMode) {
-        // РЕЖИМ ИГРЫ: Двигаем физическую капсулу (без полетов)
-        if (!playerBody) return;
+   
 
-        // Направление движения (только по горизонтали, чтобы не летать в небо)
-        glm::vec3 forward = glm::normalize(glm::vec3(Orientation.x, 0.0f, Orientation.z));
-        glm::vec3 right = glm::normalize(glm::cross(forward, Up));
-
-        glm::vec3 moveDir(0.0f);
-        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) moveDir += forward;
-        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) moveDir -= forward;
-        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) moveDir -= right;
-        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) moveDir += right;
-
-        if (glm::length(moveDir) > 0.1f) moveDir = glm::normalize(moveDir);
-
-        // Получаем текущую физическую скорость
-        physx::PxVec3 currentVel = playerBody->getLinearVelocity();
-
-        // Меняем только скорости X и Z (чтобы гравитация по Y работала)
-        currentVel.x = moveDir.x * walkSpeed;
-        currentVel.z = moveDir.z * walkSpeed;
-
-        // Прыжок (если стоим на земле)
-        if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && isGrounded) {
-            currentVel.y = jumpForce;
-        }
-
-        // Применяем скорость к капсуле
-        playerBody->setLinearVelocity(currentVel);
     }
     else
     {

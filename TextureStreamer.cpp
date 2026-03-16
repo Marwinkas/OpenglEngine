@@ -22,7 +22,16 @@ void TextureStreamer::StreamTextureAsync(const std::string& filepath, Texture* o
     std::lock_guard<std::mutex> lock(queueMutex);
     taskQueue.push(task);
 }
-
+static GLenum GetGLFormat(const BHTexHeader& header) {
+    if (header.format == 2) return GL_COMPRESSED_RG_RGTC2; // BC5
+    if (header.format == 1) return header.isSRGB
+        ? GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT
+        : GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
+    // format == 0
+    return header.isSRGB
+        ? GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT
+        : GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
+}
 void TextureStreamer::WorkerThreadLoop() {
     while (isRunning) {
         TextureLoadTask* currentTask = nullptr;
@@ -73,77 +82,70 @@ void TextureStreamer::UploadSingleMip(TextureLoadTask* task, int mipLevel) {
     size_t size = task->mipSizes[mipLevel];
     size_t offset = task->mipOffsets[mipLevel];
 
-    // Вычисляем ширину и высоту именно для этого мипмапа (сдвиг битов вправо == деление на 2)
     int w = std::max(1, (int)task->header.width >> mipLevel);
     int h = std::max(1, (int)task->header.height >> mipLevel);
 
-    GLenum glFormat = (task->header.format == 1) ?
-        (task->header.isSRGB ? GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT : GL_COMPRESSED_RGBA_S3TC_DXT5_EXT) :
-        (task->header.isSRGB ? GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT : GL_COMPRESSED_RGBA_S3TC_DXT1_EXT);
+    GLenum glFormat = GetGLFormat(task->header); // ← теперь правильный формат
 
-    // Заливаем кусок данных из оперативки в PBO
-    glBufferData(GL_PIXEL_UNPACK_BUFFER, size, task->rawData.data() + offset, GL_STREAM_DRAW);
-
-    // Копируем из PBO в видеокарту (работает АСИНХРОННО!)
-    glCompressedTexSubImage2D(GL_TEXTURE_2D, mipLevel, 0, 0, w, h, glFormat, size, 0);
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, size,
+        task->rawData.data() + offset, GL_STREAM_DRAW);
+    glCompressedTexSubImage2D(GL_TEXTURE_2D, mipLevel,
+        0, 0, w, h, glFormat, size, 0);
 }
 
 // Вызывается каждый кадр в main.cpp
 bool TextureStreamer::Update() {
-    TextureLoadTask* task = nullptr;
+    bool anyLoaded = false;
 
-    {
-        std::lock_guard<std::mutex> lock(queueMutex);
-        if (!readyQueue.empty()) {
+    while (true) {
+        TextureLoadTask* task = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(queueMutex);
+            if (readyQueue.empty()) break;
             task = readyQueue.front();
         }
-    }
 
-    if (task != nullptr) {
+        GLenum glFormat = GetGLFormat(task->header); // ← и тут тоже
+
         glGenTextures(1, &task->textureID);
         glBindTexture(GL_TEXTURE_2D, task->textureID);
 
-        // ЖЕСТКО СТАВИМ ПРАВИЛЬНЫЕ ФИЛЬТРЫ (Перебиваем битые настройки JSON)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, task->header.wrapS);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, task->header.wrapT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,
+            task->header.wrapS ? task->header.wrapS : GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,
+            task->header.wrapT ? task->header.wrapT : GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-        // ВАЖНО: АНИЗОТРОПНАЯ ФИЛЬТРАЦИЯ (УБИВАЕТ МЫЛО ПОД УГЛОМ НА ПОЛУ)
         float maxAniso = 0.0f;
         glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAniso);
-        if (maxAniso > 0.0f) {
+        if (maxAniso > 0.0f)
             glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, maxAniso);
-        }
 
-        GLenum glFormat = (task->header.format == 1) ?
-            (task->header.isSRGB ? GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT : GL_COMPRESSED_RGBA_S3TC_DXT5_EXT) :
-            (task->header.isSRGB ? GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT : GL_COMPRESSED_RGBA_S3TC_DXT1_EXT);
+        glTexStorage2D(GL_TEXTURE_2D, task->header.mipCount, glFormat,
+            task->header.width, task->header.height);
 
-        // Резервируем память под ВСЕ мипы сразу
-        glTexStorage2D(GL_TEXTURE_2D, task->header.mipCount, glFormat, task->header.width, task->header.height);
-
-        // Грузим ВСЕ мипмапы за один проход! (С PBO это безопасно и быстро)
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
         for (uint32_t m = 0; m < task->header.mipCount; m++) {
             UploadSingleMip(task, m);
         }
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
-        // Создаем резидентный хэндл ОДИН РАЗ, без изменения Base Level
         task->bindlessHandle = glGetTextureHandleARB(task->textureID);
         glMakeTextureHandleResidentARB(task->bindlessHandle);
 
         task->targetTexture->ID = task->textureID;
         task->targetTexture->handle = task->bindlessHandle;
 
-        std::cout << "[Стриминг] Текстура загружена ИДЕАЛЬНО: " << task->filepath << std::endl;
+        std::cout << "[Стриминг] Загружена: " << task->filepath << std::endl;
 
-        std::lock_guard<std::mutex> lock(queueMutex);
-        readyQueue.pop();
+        {
+            std::lock_guard<std::mutex> lock(queueMutex);
+            readyQueue.pop();
+        }
         delete task;
-
-        return true; // Дергаем SSBO (isSceneDirty = true в main)
+        anyLoaded = true;
     }
-    return false;
+
+    return anyLoaded;
 }

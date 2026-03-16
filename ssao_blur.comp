@@ -1,9 +1,10 @@
-#version 430 core
+﻿#version 430 core
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 layout(r16f, binding = 0) writeonly uniform image2D imgOutput;
 
 uniform sampler2D ssaoInput;
 uniform sampler2D depthTexture;
+uniform sampler2D normalTexture;
 uniform mat4 invViewProj;
 
 vec3 ReconstructWorldPos(vec2 uv, float depth) {
@@ -14,35 +15,40 @@ vec3 ReconstructWorldPos(vec2 uv, float depth) {
 
 void main() {
     ivec2 texCoords = ivec2(gl_GlobalInvocationID.xy);
-    ivec2 imgSize = imageSize(imgOutput);
-    if(texCoords.x >= imgSize.x || texCoords.y >= imgSize.y) return;
+    ivec2 imgSize   = imageSize(imgOutput);
+    if (texCoords.x >= imgSize.x || texCoords.y >= imgSize.y) return;
 
-    vec2 uv = (vec2(texCoords) + 0.5) / vec2(imgSize);
+    vec2  uv          = (vec2(texCoords) + 0.5) / vec2(imgSize);
     float centerDepth = texture(depthTexture, uv).r;
 
     if (centerDepth >= 0.9999) {
-        imageStore(imgOutput, texCoords, vec4(1.0));
-        return;
+        imageStore(imgOutput, texCoords, vec4(1.0)); return;
     }
 
-    vec3 centerPos = ReconstructWorldPos(uv, centerDepth);
-    vec2 texelSize = 1.0 / vec2(imgSize);
-    float result = 0.0;
+    vec3  centerPos    = ReconstructWorldPos(uv, centerDepth);
+    vec3  centerNormal = normalize(texture(normalTexture, uv).rgb);
+    vec2  texelSize    = 1.0 / vec2(imgSize);
+
+    float result      = 0.0;
     float totalWeight = 0.0;
 
-    for (int x = -2; x <= 2; ++x) {
-        for (int y = -2; y <= 2; ++y) {
-            vec2 offset = vec2(float(x), float(y)) * texelSize;
-            vec2 sampleUV = uv + offset;
+    for (int x = -3; x <= 3; x++) {
+        for (int y = -3; y <= 3; y++) {
+            vec2  sampleUV     = uv + vec2(x, y) * texelSize;
+            float sampleDepth  = texture(depthTexture, sampleUV).r;
+            vec3  samplePos    = ReconstructWorldPos(sampleUV, sampleDepth);
+            vec3  sampleNormal = normalize(texture(normalTexture, sampleUV).rgb);
 
-            float sampleSSAO = texture(ssaoInput, sampleUV).r;
-            float sampleDepth = texture(depthTexture, sampleUV).r;
-            vec3 samplePos = ReconstructWorldPos(sampleUV, sampleDepth);
+            // Bilateral веса — близкие по позиции и нормали пиксели
+            float posDiff    = distance(centerPos, samplePos);
+            float normalDiff = 1.0 - clamp(dot(centerNormal, sampleNormal), 0.0, 1.0);
 
-            float weight = (distance(centerPos, samplePos) < 0.3) ? 1.0 : 0.0;
-            result += sampleSSAO * weight;
+            float weight = exp(-posDiff * 5.0 - normalDiff * 10.0);
+
+            result      += texture(ssaoInput, sampleUV).r * weight;
             totalWeight += weight;
         }
     }
+
     imageStore(imgOutput, texCoords, vec4(result / max(totalWeight, 0.0001)));
 }

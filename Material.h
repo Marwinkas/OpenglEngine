@@ -11,6 +11,7 @@
 #include "TextureStreamer.h"
     static int MaterialID;
     // Добавляем выравнивание!
+ 
     struct alignas(16) MaterialGPUData {
         uint64_t albedoHandle;     // 8 байт
         uint64_t normalHandle;     // 8 байт
@@ -27,12 +28,13 @@
         int hasAO;                 // 4 байт
         int useTriplanar;          // 4 байт
         float triplanarScale;      // 4 байт (Итого: 32 байта)
-
-        float padding[4];          // 16 байт ПУСТОТЫ. Добиваем общий размер ровно до 96 байт!
+        glm::vec2 uvScale;
+        glm::vec2 padding;          // 16 байт ПУСТОТЫ. Добиваем общий размер ровно до 96 байт!
     };
     class Material
     {
     public:
+        glm::vec2 uvScale = glm::vec2(1.0f, 1.0f);
         int ID;
         Material() {
             ID = MaterialID;

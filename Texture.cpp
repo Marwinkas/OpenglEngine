@@ -120,7 +120,9 @@ Texture::Texture(const char* image, const char* texType, GLuint slot, int typema
         else {
             glFormat = header.isSRGB ? GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT : GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
         }
-
+        if (header.format == 2) {
+            glFormat = GL_COMPRESSED_RG_RGTC2; // BC5 — встроен в OpenGL 3.0+
+        }
         // ========================================================
         // 2. ЖЕСТКАЯ ПРОВЕРКА ОШИБОК OPENGL
         // ========================================================
@@ -214,11 +216,11 @@ Texture::Texture(const char* image, const char* texType, GLuint slot, int typema
     }
     else { // Linear (Нормали, Маски)
         if (numColCh == 4) {
-            internalFormat = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
+            internalFormat = GL_RGBA8;
             format = GL_RGBA;
         }
         else if (numColCh == 3) {
-            internalFormat = GL_COMPRESSED_RGB_S3TC_DXT1_EXT;
+            internalFormat = GL_RGB8;
             format = GL_RGB;
         }
         else {

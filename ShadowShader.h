@@ -22,8 +22,8 @@ public:
     bool staticShadowsDirty = true;    // Флаг: нужно ли перерисовать статику?
     bool sunIsStatic = false;
     unsigned int sunFBO;
-    int sunShadowSize = 512;     
-    std::vector<float> cascadeSplits = { 20.0f, 50.0f, 150.0f, 1000.0f }; 
+    int sunShadowSize = 2048;
+    std::vector<float> cascadeSplits = { 25.0f, 80.0f, 200.0f, 400.0f };
 
     void Init() override {
         loc.lightProjection = GetLoc("lightProjection");

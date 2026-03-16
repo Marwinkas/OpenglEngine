@@ -5,6 +5,11 @@
 
 // Наш кастомный заголовок для файла текстуры
 // Наш кастомный заголовок для файла текстуры
+enum class BHTexType : uint8_t {
+    Color = 0,  // DXT1/DXT5 sRGB
+    Normal = 1,  // BC5 или сырой RG
+    Linear = 2,  // DXT1/DXT5 linear (roughness, metallic, ao)
+};
 struct BHTexHeader {
     char magic[4] = { 'B', 'H', 'T', 'X' };
     uint32_t version = 1;        // Версия формата (чтобы не сломать старые файлы в будущем)
@@ -14,6 +19,7 @@ struct BHTexHeader {
     uint32_t height = 0;
     uint32_t mipCount = 0;
     uint32_t format = 0;         // 0 = DXT1 (без альфы), 1 = DXT5 (с альфой)
+    uint8_t  texType;
 
     // Настройки сэмплера (OpenGL)
     uint32_t wrapS = 0x2901;     // GL_REPEAT (10497)
@@ -32,12 +38,15 @@ struct BHTexHeader {
 };
 class TextureImporter {
 public:
-    static bool ImportTexture(const std::string& srcPath, const std::string& destPath);
+    static bool ImportTexture(const std::string& srcPath,
+        const std::string& destPath,
+        BHTexType texType);
 
     // --- НОВЫЕ ФУНКЦИИ ---
     static bool ReadHeader(const std::string& filePath, BHTexHeader& outHeader);
     static bool UpdateHeader(const std::string& filePath, const BHTexHeader& newHeader);
-
+    static void CompressToBC5(const unsigned char* rgbaData, int width, int height,
+        std::vector<unsigned char>& outData);
 private:
     static void CompressToDXT(const unsigned char* rgbaData, int width, int height, bool hasAlpha, std::vector<unsigned char>& outData);
 };

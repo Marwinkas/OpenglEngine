@@ -7,9 +7,8 @@
 #include <string>
 #include <vector>
 #include <glm/glm.hpp>
-
-namespace physx { class PxRigidActor; } // Оставим пока PhysX, потом заменим на Jolt
-
+#include <Jolt/Jolt.h>
+#include <Jolt/Physics/Body/BodyID.h>
 // 1. Имя и теги (Всё, что нужно для UI и поиска)
 struct TagComponent {
     std::string name = "Entity";
@@ -49,15 +48,17 @@ enum class RigidBodyType { Static, Dynamic };
 
 struct PhysicsComponent {
     ColliderType colliderType = ColliderType::Box;
-    glm::vec3 extents = glm::vec3(1.0f, 1.0f, 1.0f);
-    float radius = 1.0f;
+    glm::vec3 extents = glm::vec3(1.0f, 1.0f, 1.0f); // Для Box (Half-extents)
+    float radius = 1.0f;                             // Для Sphere
 
     RigidBodyType bodyType = RigidBodyType::Dynamic;
     float mass = 10.0f;
     float friction = 0.5f;
-    float restitution = 0.5f;
+    float restitution = 0.5f; // Прыгучесть
 
-    physx::PxRigidActor* pxActor = nullptr;
+    // ВОТ ОНО! Jolt использует легкие ID вместо тяжелых указателей.
+    // По умолчанию инициализируем недействительным ID
+    JPH::BodyID bodyID;
 
     bool updatePhysicsTransform = false;
     bool rebuildPhysics = false;

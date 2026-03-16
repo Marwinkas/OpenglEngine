@@ -4,20 +4,16 @@ layout(r16f, binding = 0) writeonly uniform image2D imgOutput;
 
 uniform sampler2D depthTexture;
 uniform sampler2D normalTexture;
-uniform sampler2D hiZTexture;
 uniform sampler2D noiseTexture;
-
 uniform mat4 invViewProj;
 uniform mat4 projectionMatrix;
+uniform mat4 viewMatrix;
 uniform vec3 camPos;
 uniform vec3 sunDirFog;
 uniform float contactShadowLength;
 uniform float contactShadowThickness;
 uniform int contactShadowSteps;
-uniform int hiZMipCount;
-
-// Флаг в виде int
-uniform int enableContactShadows; 
+uniform int enableContactShadows;
 
 vec3 ReconstructWorldPos(vec2 uv, float depth) {
     vec4 ndc = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
@@ -25,79 +21,75 @@ vec3 ReconstructWorldPos(vec2 uv, float depth) {
     return worldPos.xyz / worldPos.w;
 }
 
-// ФИКС ОШИБКИ C7011 (Берем только .xy)
-vec2 worldPosToUV(vec3 worldPos) {
-    vec4 projected = projectionMatrix * vec4(worldPos, 1.0);
-    return (projected.xy / projected.w) * 0.5 + 0.5;
-}
-
-float worldToNDCDepth(vec3 worldPos) {
-    vec4 projected = projectionMatrix * vec4(worldPos, 1.0);
-    return (projected.z / projected.w) * 0.5 + 0.5;
-}
-
 void main() {
     ivec2 texCoords = ivec2(gl_GlobalInvocationID.xy);
-    ivec2 imgSize = imageSize(imgOutput);
-    if(texCoords.x >= imgSize.x || texCoords.y >= imgSize.y) return;
+    ivec2 imgSize   = imageSize(imgOutput);
+    if (texCoords.x >= imgSize.x || texCoords.y >= imgSize.y) return;
 
-    if (enableContactShadows == 0) { imageStore(imgOutput, texCoords, vec4(1.0)); return; }
+    if (enableContactShadows == 0) {
+        imageStore(imgOutput, texCoords, vec4(1.0)); return;
+    }
 
-    vec2 uv = (vec2(texCoords) + 0.5) / vec2(imgSize);
+    vec2  uv    = (vec2(texCoords) + 0.5) / vec2(imgSize);
     float depth = texture(depthTexture, uv).r;
-
     if (depth >= 0.9999) { imageStore(imgOutput, texCoords, vec4(1.0)); return; }
 
-    vec3 worldPos = ReconstructWorldPos(uv, depth);
-    vec3 worldNormal = texture(normalTexture, uv).rgb;
-    if(length(worldNormal) < 0.1) { imageStore(imgOutput, texCoords, vec4(1.0)); return; }
+    vec3 worldPos    = ReconstructWorldPos(uv, depth);
+    vec3 worldNormal = normalize(texture(normalTexture, uv).rgb);
+    if (length(texture(normalTexture, uv).rgb) < 0.1) {
+        imageStore(imgOutput, texCoords, vec4(1.0)); return;
+    }
+
+    vec3  rayDir = normalize(-sunDirFog);
+    float NdotL  = dot(worldNormal, rayDir);
+    if (NdotL <= 0.0) { imageStore(imgOutput, texCoords, vec4(1.0)); return; }
 
     float distToCam = distance(camPos, worldPos);
-    float maxVisibleDist = 30.0; 
-    float fadeStart = 20.0;      
-    if (distToCam > maxVisibleDist) { imageStore(imgOutput, texCoords, vec4(1.0)); return; }
-    
-    float fadeFactor = 1.0 - smoothstep(fadeStart, maxVisibleDist, distToCam);
-    vec3 rayDir = normalize(-sunDirFog); 
-    float dither = texture(noiseTexture, vec2(texCoords) / 256.0).r;
-    
-    // ФИКС ЧЕРНЫХ ПЯТЕН (Увеличиваем отступ от поверхности)
-    float bias = 0.05 + (distToCam * 0.02); 
-    vec3 rayOrigin = worldPos + worldNormal * bias;
-    
-    float maxDist = min(contactShadowLength, distToCam * 0.1); 
-    float stepDist = maxDist / float(max(contactShadowSteps, 1));
-    
-    // Начинаем проверку не сразу, а с отступом (чтобы луч не врезался в свой же пиксель)
-    float currentT = stepDist * (dither + 2.0); 
-    
-    int currentMip = 0;
-    float shadowIntensity = 1.0; 
-    float dynamicThickness = contactShadowThickness * (1.0 + distToCam * 0.05);
+    if (distToCam > 50.0) { imageStore(imgOutput, texCoords, vec4(1.0)); return; }
+    float fadeFactor = 1.0 - smoothstep(35.0, 50.0, distToCam);
+    float dither     = texture(noiseTexture, vec2(texCoords) / 256.0).r;
+
+    // Длина тени зависит от расстояния — вблизи короткая и детальная
+    float scaledLength = contactShadowLength * clamp(distToCam * 0.1, 0.2, 1.0);
+
+    float bias      = 0.005 + 0.01 * (1.0 - NdotL); // меньше bias = больше деталей
+    vec3  rayOrigin = worldPos + worldNormal * bias;
+    float stepDist  = scaledLength / float(max(contactShadowSteps, 1));
+    float currentT  = stepDist * dither; // начинаем с нуля + dither
+
+    float shadowResult     = 1.0;
+    // thickness тоже меньше вблизи — больше деталей
+    float dynamicThickness = contactShadowThickness * clamp(distToCam * 0.05, 0.1, 1.0);
 
     for (int i = 0; i < contactShadowSteps; i++) {
-        vec3 sampleWorldPos = rayOrigin + rayDir * currentT;
-        vec2 sampleUV = worldPosToUV(sampleWorldPos);
+        if (currentT > scaledLength) break;
 
-        if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0) break;
+        vec3 samplePos = rayOrigin + rayDir * currentT;
+        vec4 clipPos   = projectionMatrix * viewMatrix * vec4(samplePos, 1.0);
+        if (clipPos.w <= 0.0) break;
 
-        float hiZDepth = textureLod(hiZTexture, sampleUV, currentMip).r;
-        float rayDepth = worldToNDCDepth(sampleWorldPos);
+        vec2  sampleUV    = clipPos.xy / clipPos.w * 0.5 + 0.5;
+        if (sampleUV.x < 0.0 || sampleUV.x > 1.0 ||
+            sampleUV.y < 0.0 || sampleUV.y > 1.0) break;
 
-        if (rayDepth > hiZDepth) {
-            if (currentMip == 0) {
-                float hitDepth = texture(depthTexture, sampleUV).r;
-                vec3 hitWorldPos = ReconstructWorldPos(sampleUV, hitDepth); 
-                if (distance(hitWorldPos, sampleWorldPos) < dynamicThickness) {
-                    shadowIntensity = clamp(currentT / maxDist, 0.0, 1.0); break;
-                }
-                currentT += stepDist;
-            } else { currentMip--; }
-        } else {
-            currentT += stepDist * (1.0 + float(currentMip));
-            if (currentMip < hiZMipCount - 2) currentMip++;
+        float rayDepthNDC = clipPos.z / clipPos.w * 0.5 + 0.5;
+        float sceneDepth  = texture(depthTexture, sampleUV).r;
+
+        if (rayDepthNDC > sceneDepth + 0.00005) { // меньше epsilon = чувствительнее
+            vec3  hitWorldPos = ReconstructWorldPos(sampleUV, sceneDepth);
+            float hitDist     = distance(hitWorldPos, samplePos);
+
+            if (hitDist < dynamicThickness) {
+                // Убрали distFade — тень теперь сразу от нуля
+                float shadowStrength = 1.0 - clamp(hitDist / dynamicThickness, 0.0, 1.0);
+                shadowResult = 1.0 - clamp(shadowStrength * 0.9, 0.0, 0.9);
+                break;
+            }
         }
-        if (currentT > maxDist) break;
+
+        currentT += stepDist;
     }
-    imageStore(imgOutput, texCoords, vec4(mix(1.0, shadowIntensity, fadeFactor)));
+
+    float result = mix(1.0, shadowResult, fadeFactor);
+    imageStore(imgOutput, texCoords, vec4(result));
 }

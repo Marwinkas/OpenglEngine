@@ -1,30 +1,46 @@
-﻿ #version 430 core
+﻿#version 430 core
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
-layout(rgba16f, binding = 0) uniform image3D accumTex;
+layout(rgba16f, binding = 0) writeonly uniform image3D accumTex;
+
 uniform sampler3D volumeTex;
 uniform float zNear;
 uniform float zFar;
+
+const int VOXEL_X = 80;  // было 160
+const int VOXEL_Y = 45;  // было 90
+const int VOXEL_Z = 64;
+
 void main() {
     ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
-    if(coord.x >= 160 || coord.y >= 90) return;
-    vec4 accum = vec4(0.0, 0.0, 0.0, 1.0); 
-    float prevViewZ = -zNear;
-    for(int z = 0; z < 64; ++z) {
-        ivec3 voxel = ivec3(coord, z);
-        vec4 slice = texelFetch(volumeTex, voxel, 0); 
-        float sliceUVW_Z = float(z + 1) / 64.0;
-        float currentViewZ = -zNear * pow(zFar / zNear, sliceUVW_Z);
-        float stepSize = abs(currentViewZ - prevViewZ);
-        prevViewZ = currentViewZ;
-        float transmittance = exp(-slice.a * stepSize);
-        vec3 S_int;
-        if (slice.a > 0.0001) {
-            S_int = (slice.rgb / slice.a) * (1.0 - transmittance);
-        } else {
-            S_int = slice.rgb * stepSize;
-        }
-        accum.rgb += S_int * accum.a;
-        accum.a *= transmittance;
-        imageStore(accumTex, voxel, accum);
+    if (coord.x >= VOXEL_X || coord.y >= VOXEL_Y) return;
+
+    vec3  accumColor = vec3(0.0);
+    float accumTrans = 1.0; // <-- обязательно 1.0
+    float prevDist   = zNear;
+
+    for (int z = 0; z < VOXEL_Z; ++z) {
+        float uvwZ     = (float(z) + 0.5) / float(VOXEL_Z);
+        float dist     = zNear * pow(zFar / zNear, uvwZ);
+        float stepSize = max(dist - prevDist, 1e-4);
+        prevDist       = dist;
+
+        vec4  slice      = texelFetch(volumeTex, ivec3(coord, z), 0);
+        float extinction = clamp(slice.a, 0.0, 50.0);
+        vec3  scattering = clamp(slice.rgb, vec3(0.0), vec3(10.0));
+
+        float sliceTrans = exp(-extinction * stepSize);
+
+        vec3 contrib;
+        if (extinction > 1e-5)
+            contrib = (scattering / extinction) * (1.0 - sliceTrans);
+        else
+            contrib = scattering * stepSize;
+
+        accumColor += contrib * accumTrans;
+        accumTrans *= sliceTrans;
+        accumTrans  = max(accumTrans, 0.0);
+        accumColor  = min(accumColor, vec3(10.0));
+
+        imageStore(accumTex, ivec3(coord, z), vec4(accumColor, accumTrans));
     }
-} 
+}

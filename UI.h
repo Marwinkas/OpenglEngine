@@ -141,7 +141,6 @@ public:
         if (registry.all_of<LightComponent>(source)) registry.emplace<LightComponent>(copy, registry.get<LightComponent>(source));
         if (registry.all_of<PhysicsComponent>(source)) {
             auto phys = registry.get<PhysicsComponent>(source);
-            phys.pxActor = nullptr; // Сброс физики
             phys.rebuildPhysics = true;
             registry.emplace<PhysicsComponent>(copy, phys);
         }
@@ -827,14 +826,41 @@ public:
                     if (ext == ".png" || ext == ".jpg" || ext == ".jpeg") {
                         fs::path compressedPath = entry.path();
                         compressedPath.replace_extension(".bhtex");
-
                         if (!fs::exists(compressedPath)) {
                             std::cout << "Detected new texture, compiling: " << entry.path().filename() << "...\n";
 
-                            // Если конвертация прошла успешно...
-                            if (TextureImporter::ImportTexture(entry.path().string(), compressedPath.string())) {
+                            // Определяем тип текстуры по имени файла
+                            std::string name = entry.path().stem().string();
+                            // Приводим к нижнему регистру для надёжного поиска
+                            std::string nameLower = name;
+                            std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
 
-                                // УДАЛЯЕМ СТАРУЮ КАРТИНКУ С ЖЕСТКОГО ДИСКА!
+                            BHTexType texType = BHTexType::Color; // по умолчанию — цвет
+
+                            if (nameLower.find("normal") != std::string::npos ||
+                                nameLower.find("nrm") != std::string::npos ||
+                                nameLower.find("_nor") != std::string::npos ||
+                                nameLower.find("_n.") != std::string::npos) {
+                                texType = BHTexType::Normal;
+                                std::cout << "  -> Type: Normal (BC5)\n";
+                            }
+                            else if (nameLower.find("rough") != std::string::npos ||
+                                nameLower.find("metal") != std::string::npos ||
+                                nameLower.find("ao") != std::string::npos ||
+                                nameLower.find("height") != std::string::npos ||
+                                nameLower.find("occlu") != std::string::npos ||
+                                nameLower.find("_r.") != std::string::npos ||
+                                nameLower.find("_m.") != std::string::npos) {
+                                texType = BHTexType::Linear;
+                                std::cout << "  -> Type: Linear (DXT1 no sRGB)\n";
+                            }
+                            else {
+                                std::cout << "  -> Type: Color (DXT5 sRGB)\n";
+                            }
+
+                            if (TextureImporter::ImportTexture(entry.path().string(),
+                                compressedPath.string(),
+                                texType)) {
                                 try {
                                     fs::remove(entry.path());
                                     std::cout << "Deleted original file: " << entry.path().filename() << "\n";
@@ -842,9 +868,6 @@ public:
                                 catch (const fs::filesystem_error& e) {
                                     std::cerr << "Cannot delete file: " << e.what() << "\n";
                                 }
-
-                                // Пропускаем добавление старого файла в UI, 
-                                // так как мы его только что стерли.
                                 continue;
                             }
                         }
@@ -1478,23 +1501,56 @@ public:
 
         if (selectedEntity != entt::null && registry.valid(selectedEntity) && registry.all_of<TransformComponent>(selectedEntity)) {
             auto& tComp = registry.get<TransformComponent>(selectedEntity);
+
+            // 1. Собираем АКТУАЛЬНУЮ локальную матрицу каждый кадр
+            glm::mat4 localMatrix;
+            ImGuizmo::RecomposeMatrixFromComponents(
+                glm::value_ptr(tComp.transform.position),
+                glm::value_ptr(tComp.transform.rotation),
+                glm::value_ptr(tComp.transform.scale),
+                glm::value_ptr(localMatrix)
+            );
+
+            // 2. Если есть родитель - переводим в МИРОВЫЕ координаты (Гизмо работает только с миром)
+            glm::mat4 worldMatrix = localMatrix;
+            glm::mat4 parentWorldMatrix = glm::mat4(1.0f);
+
+            if (registry.all_of<HierarchyComponent>(selectedEntity)) {
+                entt::entity parent = registry.get<HierarchyComponent>(selectedEntity).parent;
+                if (parent != entt::null && registry.all_of<TransformComponent>(parent)) {
+                    parentWorldMatrix = registry.get<TransformComponent>(parent).transform.matrix;
+                    worldMatrix = parentWorldMatrix * localMatrix;
+                }
+            }
+
+            // 3. Отслеживаем начало перетаскивания для Undo/Redo
             if (ImGuizmo::IsUsing() && !wasUsingGizmo) SaveState(registry);
             wasUsingGizmo = ImGuizmo::IsUsing();
-            ImGuizmo::Manipulate(glm::value_ptr(view), glm::value_ptr(proj), currentGizmoOperation, currentGizmoMode, glm::value_ptr(model));
 
+            // 4. РИСУЕМ САМ ГИЗМО
+            ImGuizmo::Manipulate(glm::value_ptr(view), glm::value_ptr(proj), currentGizmoOperation, currentGizmoMode, glm::value_ptr(worldMatrix));
+
+            // 5. Если мы потянули за стрелочку - сохраняем новые координаты обратно
             if (ImGuizmo::IsUsing()) {
                 render.isSceneDirty = true;
-                glm::mat4 newWorldMatrix = model;
-                if (registry.all_of<HierarchyComponent>(selectedEntity)) {
-                    entt::entity parent = registry.get<HierarchyComponent>(selectedEntity).parent;
-                    if (parent != entt::null && registry.all_of<TransformComponent>(parent)) {
-                        glm::mat4 parentWorldMatrix = registry.get<TransformComponent>(parent).transform.matrix;
-                        newWorldMatrix = glm::inverse(parentWorldMatrix) * newWorldMatrix;
-                    }
-                }
-                ImGuizmo::DecomposeMatrixToComponents(glm::value_ptr(newWorldMatrix), glm::value_ptr(tComp.transform.position), glm::value_ptr(tComp.transform.rotation), glm::value_ptr(tComp.transform.scale));
+
+                // Очищаем мировую матрицу от родительской, чтобы получить новые локальные координаты
+                glm::mat4 newLocalMatrix = glm::inverse(parentWorldMatrix) * worldMatrix;
+
+                // Записываем прямо в TransformComponent!
+                ImGuizmo::DecomposeMatrixToComponents(
+                    glm::value_ptr(newLocalMatrix),
+                    glm::value_ptr(tComp.transform.position),
+                    glm::value_ptr(tComp.transform.rotation),
+                    glm::value_ptr(tComp.transform.scale)
+                );
+
                 tComp.transform.updatematrix = true;
-                if (registry.all_of<PhysicsComponent>(selectedEntity)) registry.get<PhysicsComponent>(selectedEntity).updatePhysicsTransform = true;
+
+                // Говорим физике, что мы сдвинули объект руками
+                if (registry.all_of<PhysicsComponent>(selectedEntity)) {
+                    registry.get<PhysicsComponent>(selectedEntity).updatePhysicsTransform = true;
+                }
             }
         }
 

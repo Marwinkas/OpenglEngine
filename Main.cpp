@@ -56,7 +56,7 @@ int main()
     try {
         // Устанавливаем кодировку вывода в UTF-8 (код 65001)
 
-        Window window = Window();
+        Window window = Window(1280,720,"BurnhopeEngine");
         Objects.reserve(1000);
      
         // Проверяем пути
@@ -86,26 +86,48 @@ int main()
 
         PhysicsEngine physicsEngine;
         physicsEngine.Init();
-        physicsEngine.CreateTestScene();
         
         float lastFrame = glfwGetTime();
-        physicsEngine.RegisterObjects(Objects);
 
         entt::registry registry;
+        // === СПАВНИМ ПОЛ (СТАТИКА) ===
+        auto floorEntity = registry.create();
+        registry.emplace<TagComponent>(floorEntity, "Floor");
+        auto& floorTransform = registry.emplace<TransformComponent>(floorEntity);
+        floorTransform.transform.position = glm::vec3(0.0f, -5.0f, 0.0f); // Чуть ниже центра
+        floorTransform.transform.scale = glm::vec3(50.0f, 1.0f, 50.0f);
+        auto& floorPhysics = registry.emplace<PhysicsComponent>(floorEntity);
+        floorPhysics.bodyType = RigidBodyType::Static;
+        floorPhysics.colliderType = ColliderType::Box;
+        floorPhysics.extents = glm::vec3(50.0f, 1.0f, 50.0f); // Широкий плоский пол
 
+        // === СПАВНИМ КУБИК (ДИНАМИКА) ===
+        auto cubeEntity = registry.create();
+        registry.emplace<TagComponent>(cubeEntity, "FallingCube");
+        auto& cubeTransform = registry.emplace<TransformComponent>(cubeEntity);
+        cubeTransform.transform.position = glm::vec3(0.0f, 10.0f, 0.0f); // Висит в воздухе
+
+        auto& cubePhysics = registry.emplace<PhysicsComponent>(cubeEntity);
+        cubePhysics.bodyType = RigidBodyType::Dynamic;
+        cubePhysics.colliderType = ColliderType::Box;
+        cubePhysics.extents = glm::vec3(0.5f, 0.5f, 0.5f); // Размер кубика 1х1х1
+        registry.on_destroy<PhysicsComponent>().connect<&PhysicsEngine::OnPhysicsComponentDestroyed>(&physicsEngine);
+        // Инициализируем Jolt тела для этих двух сущностей
+        physicsEngine.RegisterEntities(registry);
         while (!glfwWindowShouldClose(window.window))
         {
             if (texStreamer.Update()) {
-                render.isSceneDirty = true; // Текстура догрузилась? Обновляем SSBO!
+                render.isSceneDirty = true;
             }
             float currentFrame = glfwGetTime();
             float deltaTime = currentFrame - lastFrame;
             lastFrame = currentFrame;
             if (deltaTime > 0.1f) deltaTime = 0.1f;
-
             glEnable(GL_DEPTH_TEST);
             glEnable(GL_CULL_FACE);
-            camera.Inputs(window.window,deltaTime);
+            if (!ImGuizmo::IsUsing() && !ImGuizmo::IsOver() && !ImGui::GetIO().WantCaptureMouse) {
+                camera.Inputs(window.window, deltaTime);
+            }
             camera.taaFrameIndex++;
             camera.updateMatrix(45.0f, 0.1f, 1000);
             static bool f5Pressed = false;
@@ -114,14 +136,25 @@ int main()
                     f5Pressed = true;
                 }
             }
-           
-            std::cout << f5Pressed;
-
-            render.Draw(registry, litshader, shadowshader, postprocessingshader, window, camera, glfwGetTime(), ui, cullingshader, deferredshader);
+            render.isSceneDirty = true;
+            render.Draw(registry, litshader, shadowshader, postprocessingshader, window, camera, deltaTime, ui, cullingshader, deferredshader);
             
             if (!f5Pressed) {
                 ui.Draw(window, camera, registry, render);
             }
+            physicsEngine.RebuildPhysicsEntities(registry);
+
+            // 2. Движение Гизмо (ручной перенос)
+            physicsEngine.UpdatePhysicsFromTransforms(registry);
+
+            // 3. Шаг физики Jolt
+            physicsEngine.Update(deltaTime);
+
+            // 4. Синхронизация обратно в графику
+            if (physicsEngine.SyncTransforms(registry)) {
+                render.isSceneDirty = true;
+            }
+
             glfwSwapBuffers(window.window);
             glfwPollEvents();
         }

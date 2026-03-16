@@ -35,7 +35,10 @@ public:
 
     // 2. Вызывается каждый кадр в главном цикле. Заливает готовые данные в VRAM через PBO.
     bool Update();
-
+    bool HasPendingWork() {
+        std::lock_guard<std::mutex> lock(queueMutex);
+        return !taskQueue.empty() || !readyQueue.empty();
+    }
 private:
     void WorkerThreadLoop(); // То, что работает в фоне
     void UploadSingleMip(TextureLoadTask* task, int mipLevel); // Помощник для заливки

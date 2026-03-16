@@ -33,11 +33,14 @@ struct RenderBatch {
 	int commandOffset; // Сдвиг в глобальном буфере
 	int instanceCount;
 };
+// Components.h:
 struct alignas(16) ObjectData {
-	glm::mat4 modelMatrix;
-	GLuint materialID;
-	GLuint meshID;   
-	GLuint padding;
+	glm::mat4 modelMatrix;  // 64 байта
+	GLuint materialID;      // 4 байта
+	GLuint meshID;          // 4 байта
+	GLuint padding;         // 4 байта
+	GLuint padding2;        // 4 байта ← добавь это
+	// итого ровно 80 байт
 };
 struct alignas(16) MeshLODInfo {
 	GLuint countLOD0, firstIndexLOD0;
@@ -61,9 +64,9 @@ public:
 	glm::vec3 sunDir = glm::vec3(0.0f, -1.0f, 0.0f);
 	GLuint gDepth;
 	GLuint gBufferFBO;
-	GLuint gPositionMetallic;
 	GLuint gNormalRoughness;
-	GLuint gAlbedoAO;
+	GLuint gAlbedoMetallic;
+	GLuint gHeightAO;
 	GLuint rboDepth;
 	GLuint hdrFBO;
 	// Метод инициализации
@@ -87,13 +90,16 @@ public:
 	GLBuffer globalObjectBuffer;
 	GLBuffer globalSphereBuffer;
 	GLBuffer globalCommandBuffer;
-
+	glm::vec3 cachedCamPos = glm::vec3(0.0f);
 	bool isSceneDirty = true;
 	std::vector<MaterialGPUData> cachedMaterialDataArray;
 	std::map<Material*, int> cachedMaterialToIndex;
 	std::map<Mesh*, std::vector<RenderInstance>> cachedMainBatches;
 	std::map<Mesh*, std::vector<RenderInstance>> cachedShadowBatches;
-
+	void CSMGPUCulling(int offset, int count, const glm::mat4& sunViewProj,
+		const glm::vec3& camPos, const glm::mat4& camView,
+		const glm::vec3& sunDir, float cascadeNear, float cascadeFar,
+		CullingShader& cullingshader, Window& window);
 	// Функция пересборки (вызывается только при изменениях)
 	void RebuildBatches(entt::registry& registry);
 

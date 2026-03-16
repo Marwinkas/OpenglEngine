@@ -28,6 +28,10 @@ MaterialGPUData Material::getGPUData() {
 
     data.hasAlbedo = (hasalbedo && albedo.handle != 0) ? 1 : 0;
     data.hasNormal = (hasnormal && normal.handle != 0) ? 1 : 0;
+    if (hasnormal) {
+        std::cout << "[MAT] hasNormal=" << hasnormal
+            << " handle=" << normal.handle << std::endl;
+    }
     data.hasHeight = (hasheight && height.handle != 0) ? 1 : 0;
     data.hasMetallic = (hasmetallic && metallic.handle != 0) ? 1 : 0;
     data.hasRoughness = (hasroughness && roughness.handle != 0) ? 1 : 0;
@@ -35,6 +39,7 @@ MaterialGPUData Material::getGPUData() {
 
     data.triplanarScale = 0.1f;
     data.useTriplanar = 0;
+    data.uvScale = uvScale;
 
     return data;
 }

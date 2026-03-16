@@ -14,7 +14,7 @@ class DefferedShader : public Shader {
 public:
     struct {
         GLint camPos, shadowAtlas, farPlane, atlasResolution, tileSize, noiseTexture, viewMatrix, nearPlane, screenSize
-            , sunLightSpaceMatrices, cascadeSplits, view, camMatrix, materialID, sunShadowMap, gPositionMetallic, gNormalRoughness, gAlbedoAO;
+            , sunLightSpaceMatrices, cascadeSplits, view, camMatrix, materialID, sunShadowMap, gAlbedoMetallic, gNormalRoughness, gHeightAO;
     } loc;
 
     GLuint blueNoiseTexture;
@@ -85,9 +85,9 @@ public:
         loc.camMatrix = GetLoc("camMatrix");
         loc.materialID = GetLoc("materialID");
         loc.sunShadowMap = GetLoc("sunShadowMap");
-        loc.gPositionMetallic = GetLoc("gPositionMetallic");
+        loc.gAlbedoMetallic = GetLoc("gAlbedoMetallic");
         loc.gNormalRoughness = GetLoc("gNormalRoughness");
-        loc.gAlbedoAO = GetLoc("gAlbedoAO");
+        loc.gHeightAO = GetLoc("gHeightAO");
     }
 };
 #endif

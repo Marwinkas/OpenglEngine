@@ -54,6 +54,11 @@ void Render::RebuildBatches(entt::registry& registry) {
                     cachedMaterialToIndex[subMesh.material] = cachedMaterialDataArray.size();
                     cachedMaterialDataArray.push_back(subMesh.material->getGPUData());
                 }
+                else {
+                    // Обновляем данные материала — вдруг текстуры догрузились
+                    int idx = cachedMaterialToIndex[subMesh.material];
+                    cachedMaterialDataArray[idx] = subMesh.material->getGPUData();
+                }
                 // 2. ОБНОВЛЯЕМ ОБЪЕКТ
                 int globalIdx = objData.size();
 
@@ -94,7 +99,15 @@ void Render::RebuildBatches(entt::registry& registry) {
         globalCommandBuffer.SetData(cmdData.size() * sizeof(DrawCommand), cmdData.data());
     }
     if (!cachedMaterialDataArray.empty()) {
-        materialBuffer.SetData(cachedMaterialDataArray.size() * sizeof(MaterialGPUData), cachedMaterialDataArray.data());
+        // ДЕБАГ
+        for (int i = 0; i < cachedMaterialDataArray.size(); i++) {
+            std::cout << "[GPU MAT " << i << "] hasNormal="
+                << cachedMaterialDataArray[i].hasNormal
+                << " normalHandle=" << cachedMaterialDataArray[i].normalHandle
+                << std::endl;
+        }
+        materialBuffer.SetData(cachedMaterialDataArray.size() * sizeof(MaterialGPUData),
+            cachedMaterialDataArray.data());
     }
     if (!meshLODDataArray.empty()) {
         meshInfoBuffer.SetData(meshLODDataArray.size() * sizeof(MeshLODInfo), meshLODDataArray.data());
@@ -147,16 +160,23 @@ void Render::RebuildBatches(entt::registry& registry) {
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gNormalRoughness, 0);
 
 		// 3. Цвет (RGB) + AO (A) - Обычный 8-битный формат, тут float не нужен
-		glGenTextures(1, &gAlbedoAO);
-		glBindTexture(GL_TEXTURE_2D, gAlbedoAO);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+		glGenTextures(1, &gAlbedoMetallic);
+		glBindTexture(GL_TEXTURE_2D, gAlbedoMetallic);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gAlbedoAO, 0);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gAlbedoMetallic, 0);
+
+        glGenTextures(1, &gHeightAO);
+        glBindTexture(GL_TEXTURE_2D, gHeightAO);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gHeightAO, 0);
 
 		// Указываем OpenGL, что рисуем в 3 текстуры одновременно
-		GLuint attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
-		glDrawBuffers(2, attachments);
+		GLuint attachments[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
+		glDrawBuffers(3, attachments);
 
 		// Буфер глубины (Z-Buffer)
         glGenTextures(1, &gDepth); // Не забудь добавить GLuint gDepth; в Render.h!
@@ -185,17 +205,28 @@ void Render::RebuildBatches(entt::registry& registry) {
 	}
 	void Render::Draw(entt::registry& registry, LitShader& geometryShader, ShadowShader& shadowshader, PostProcessingShader& postprocessingshader, Window& window, Camera& camera, double crntTime, UI& ui, CullingShader& cullingshader, DefferedShader& defferedShader) {
 		ZoneScoped;
+        cachedCamPos = camera.Position;
 		glEnable(GL_CULL_FACE);
 		UpdateTransforms(registry);
 		if (isSceneDirty) {
 			RebuildBatches(registry);
 		}
+
 		GLuint zero = 0;
 		atomicCounterBuffer.UpdateData(0, sizeof(GLuint), &zero);
 		sunDir = SetupLightsAndUBO(registry, shadowshader);
-
 		cullingshader.lightCullingShader.Activate();
 		glUniformMatrix4fv(glGetUniformLocation(cullingshader.lightCullingShader.ID, "viewMatrix"), 1, GL_FALSE, glm::value_ptr(camera.GetViewMatrix()));
+        glUniformMatrix4fv(glGetUniformLocation(cullingshader.lightCullingShader.ID, "projMatrix"),
+            1, GL_FALSE, glm::value_ptr(camera.GetProjectionMatrix(45.0f, 0.1f, 1000.0f)));
+        glUniform2f(glGetUniformLocation(cullingshader.lightCullingShader.ID, "screenSize"),
+            (float)window.width, (float)window.height);
+        glUniform1i(glGetUniformLocation(cullingshader.lightCullingShader.ID, "useOcclusionCull"), 1);
+
+        // Биндим Hi-Z текстуру (она из прошлого кадра — это нормально)
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, postprocessingshader.hiZTexture);
+        glUniform1i(glGetUniformLocation(cullingshader.lightCullingShader.ID, "hiZTexture"), 0);
 
 		// Быстрый подсчет источников света (Entt делает это мгновенно)
 		auto lightView = registry.view<LightComponent>();
@@ -209,7 +240,7 @@ void Render::RebuildBatches(entt::registry& registry) {
 		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
 		glEnable(GL_CULL_FACE);
-		glCullFace(GL_FRONT);
+		glCullFace(GL_BACK);
         glEnable(GL_DEPTH_CLAMP);
 		std::vector<glm::mat4> sunMatrices = RenderCSM(camera, cachedShadowBatches, registry, shadowshader, cullingshader, window);
 		RenderAtlasShadows(camera, registry, shadowshader, cullingshader, window);
@@ -224,7 +255,7 @@ void Render::RebuildBatches(entt::registry& registry) {
 		glDisable(GL_CULL_FACE);
 		
 		sky.Draw(camera, sunDir);
-		postprocessingshader.Update(window, crntTime, camera, ui, sunDir, uboLights.ID, shadowshader, hdrOutputTexture,gDepth,gNormalRoughness, gAlbedoAO);
+		postprocessingshader.Update(window, crntTime, camera, ui, sunDir, uboLights.ID, shadowshader, hdrOutputTexture,gDepth,gNormalRoughness, gAlbedoMetallic);
 		FrameMark;
 
 		
@@ -254,28 +285,68 @@ void Render::RebuildBatches(entt::registry& registry) {
         static glm::vec3 lastSunDir = glm::vec3(0.0f);
         glm::vec3 currentSunDir = glm::vec3(0.0f, -1.0f, 0.0f);
 
-        // --- ФИКС ТЕНЕЙ №2: СЧИТАЕМ СЛОТЫ ДО ОТПРАВКИ В UBO ---
-        int currentSlot = 0;
-        auto lightViewAll = registry.view<LightComponent>();
+        // Размер атласа и максимальный тайл
+        const int atlasRes = shadowshader.atlasResolution; // 4096
+        const int maxTile = shadowshader.tileSize;        // 512
+        const int gridCount = atlasRes / maxTile;           // 8x8 = 64 слота по 512
+
+        // --- СЧИТАЕМ СЛОТЫ С УЧЁТОМ ДИСТАНЦИИ ---
+        // Атлас делим на тайлы 128x128 — минимальный размер
+        // 512 = 4x4 тайла по 128, 256 = 2x2, 128 = 1x1
+        // Используем простой линейный аллокатор в единицах 128px тайлов
+        const int minTile = 128;
+        const int atlasInUnits = atlasRes / minTile; // 32 единицы по горизонтали
+        // Общий пул слотов в единицах minTile^2
+        // Для простоты храним текущую занятую строку и колонку
+        int allocX = 0; // текущая позиция в минимальных тайлах
+        int allocY = 0;
+
+        auto lightViewAll = registry.view<LightComponent, TransformComponent>();
         for (auto entity : lightViewAll) {
             auto& light = lightViewAll.get<LightComponent>(entity).light;
-            if (!light.enable || !light.castShadows || light.type == LightType::Directional) continue;
+            auto& transform = lightViewAll.get<TransformComponent>(entity).transform;
 
-            if (light.mobility == LightMobility::Static && light.hasBakedShadows) {
-                currentSlot += (light.type == LightType::Point) ? 6 : 1;
+            if (!light.enable || !light.castShadows || light.type == LightType::Directional) continue;
+            if (light.mobility == LightMobility::Static && light.hasBakedShadows) continue;
+
+            // Определяем размер тайла по дистанции до камеры
+            float dist = glm::length(transform.position - cachedCamPos); // см ниже
+            int tileSize;
+            if (dist < 20.0f)  tileSize = 512;
+            else if (dist < 60.0f)  tileSize = 256;
+            else                    tileSize = 128;
+
+            light.shadowTileSize = tileSize;
+
+            // Размер в единицах minTile
+            int unitsPerTile = tileSize / minTile; // 4, 2 или 1
+            int facesCount = (light.type == LightType::Point) ? 6 : 1;
+
+            // Выравниваем аллокатор по размеру тайла
+            if (allocX + unitsPerTile * facesCount > atlasInUnits) {
+                allocX = 0;
+                allocY += unitsPerTile; // следующая строка
+            }
+            if (allocY + unitsPerTile > atlasInUnits) {
+                // Атлас заполнен — отключаем тени для этой лампочки
+                light.shadowSlot = -1;
                 continue;
             }
 
-            light.shadowSlot = currentSlot; // Назначаем слот и для Spot, и для Point
-            currentSlot += (light.type == LightType::Point) ? 6 : 1;
+            // Слот = индекс тайла maxTile в атласе
+            // Конвертируем позицию минимальных тайлов в пиксельные координаты
+            // и кодируем как "расширенный слот"
+            // Храним пиксельные координаты напрямую в shadowSlot как упакованное int
+            // Упаковка: slot = (pixelY / minTile) * atlasInUnits + (pixelX / minTile)
+            light.shadowSlot = allocY * atlasInUnits + allocX;
+            allocX += unitsPerTile * facesCount;
         }
-        // -------------------------------------------------------
 
+        // --- Заполняем UBO как раньше, но добавляем tileSize ---
         auto view = registry.view<LightComponent, TransformComponent>();
         for (auto entity : view) {
             auto& lightComp = view.get<LightComponent>(entity);
             auto& transformComp = view.get<TransformComponent>(entity);
-
             Light& l = lightComp.light;
             Transform& t = transformComp.transform;
 
@@ -284,7 +355,6 @@ void Render::RebuildBatches(entt::registry& registry) {
             if (l.type == LightType::Directional) {
                 glm::quat qRot = glm::quat(glm::radians(t.rotation));
                 currentSunDir = glm::normalize(qRot * glm::vec3(0.0f, -1.0f, 0.0f));
-
                 if (glm::distance(currentSunDir, lastSunDir) > 0.0001f) {
                     shadowshader.staticShadowsDirty = true;
                     lastSunDir = currentSunDir;
@@ -292,9 +362,8 @@ void Render::RebuildBatches(entt::registry& registry) {
             }
 
             int i = lightBlock.activeLightsCount;
-            float lightType = (float)l.type;
 
-            lightBlock.lights[i].posType = glm::vec4(t.position, lightType);
+            lightBlock.lights[i].posType = glm::vec4(t.position, (float)l.type);
             lightBlock.lights[i].colorInt = glm::vec4(l.color, l.intensity);
 
             glm::quat qRot = glm::quat(glm::radians(t.rotation));
@@ -310,9 +379,17 @@ void Render::RebuildBatches(entt::registry& registry) {
             float inner = glm::cos(glm::radians(l.innerCone));
             float outer = glm::cos(glm::radians(l.outerCone));
             float castsShadows = l.castShadows ? 1.0f : 0.0f;
-            float shadowSlot = (float)l.shadowSlot;
 
-            lightBlock.lights[i].shadowParams = glm::vec4(inner, outer, castsShadows, shadowSlot);
+            // Кодируем shadowSlot и tileSize вместе:
+            // shadowParams.w = shadowSlot (как раньше)
+            // shadowParams.z = castShadows
+            // НОВОЕ: tileSize передаём отдельно через свободный канал
+            // Упакуем tileSize в знак shadowSlot: положительный = 512, *-1 = 256, *-2 = 128
+            // Проще — добавим отдельный vec4 в структуру. Но структура фиксирована...
+            // Кодируем tileSize прямо в shadowSlot: slot * 10000 + tileSize
+            float encodedSlot = (float)(l.shadowSlot * 10000 + l.shadowTileSize);
+
+            lightBlock.lights[i].shadowParams = glm::vec4(inner, outer, castsShadows, encodedSlot);
             lightBlock.lights[i].lightSpaceMatrix = l.lightSpaceMatrix;
 
             lightBlock.activeLightsCount++;
@@ -334,53 +411,60 @@ void Render::RebuildBatches(entt::registry& registry) {
 		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 	}
 	
-	glm::mat4 Render::CalculateCalculateCSMMatrix(float nearP, float farP, Camera& camera, float shadowSize) {
-		glm::mat4 proj = camera.GetProjectionMatrix(45.0f, nearP, farP);
-		glm::mat4 invCam = glm::inverse(proj * camera.GetViewMatrix());
+    glm::mat4 Render::CalculateCalculateCSMMatrix(float nearP, float farP, Camera& camera, float shadowSize) {
+        glm::mat4 proj = camera.GetProjectionMatrix(45.0f, nearP, farP);
+        glm::mat4 invCam = glm::inverse(proj * camera.GetViewMatrix());
 
-		std::vector<glm::vec4> frustumCorners;
-		for (int x = 0; x < 2; ++x) {
-			for (int y = 0; y < 2; ++y) {
-				for (int z = 0; z < 2; ++z) {
-					glm::vec4 pt = invCam * glm::vec4(2.0f * x - 1.0f, 2.0f * y - 1.0f, 2.0f * z - 1.0f, 1.0f);
-					frustumCorners.push_back(pt / pt.w);
-				}
-			}
-		}
+        std::vector<glm::vec4> frustumCorners;
+        for (int x = 0; x < 2; ++x) {
+            for (int y = 0; y < 2; ++y) {
+                for (int z = 0; z < 2; ++z) {
+                    glm::vec4 pt = invCam * glm::vec4(2.0f * x - 1.0f, 2.0f * y - 1.0f, 2.0f * z - 1.0f, 1.0f);
+                    frustumCorners.push_back(pt / pt.w);
+                }
+            }
+        }
 
-		glm::vec3 center = glm::vec3(0);
-		for (const auto& v : frustumCorners) center += glm::vec3(v);
-		center /= 8.0f;
+        glm::vec3 center = glm::vec3(0);
+        for (const auto& v : frustumCorners) center += glm::vec3(v);
+        center /= 8.0f;
 
-		glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
-		if (std::abs(sunDir.y) > 0.999f) up = glm::vec3(0.0f, 0.0f, 1.0f);
+        // Магия сферы: находим идеальный радиус
+        float radius = 0.0f;
+        for (const auto& v : frustumCorners) {
+            float distance = glm::length(glm::vec3(v) - center);
+            radius = std::max(radius, distance);
+        }
+        radius = std::ceil(radius * 16.0f) / 16.0f;
 
-		glm::mat4 lightView = glm::lookAt(center - sunDir * 100.0f, center, up);
+        // =========================================================
+        // ФИКС КОРОТКИХ ТЕНЕЙ: Расширяем поле зрения солнца!
+        // =========================================================
+        radius = std::min(radius, 300.0f);
 
-		float minX = std::numeric_limits<float>::max(); float maxX = std::numeric_limits<float>::lowest();
-		float minY = std::numeric_limits<float>::max(); float maxY = std::numeric_limits<float>::lowest();
+        float padding = glm::clamp(radius * 0.05f, 2.0f, 15.0f);
+        radius += padding;
 
-		for (const auto& v : frustumCorners) {
-			glm::vec4 trf = lightView * v;
-			minX = std::min(minX, trf.x); maxX = std::max(maxX, trf.x);
-			minY = std::min(minY, trf.y); maxY = std::max(maxY, trf.y);
-		}
 
-		// --- МАГИЯ СТАБИЛИЗАЦИИ ---
-		// 1. Считаем, сколько мировых единиц (метров) приходится на 1 пиксель текстуры тени
-		float worldUnitsPerTexel = (maxX - minX) / shadowSize;
+        glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+        if (std::abs(sunDir.y) > 0.999f) up = glm::vec3(0.0f, 0.0f, 1.0f);
 
-		// 2. Округляем границы до ближайшего целого "пикселя" в мировых координатах
-		minX = std::floor(minX / worldUnitsPerTexel) * worldUnitsPerTexel;
-		maxX = std::floor(maxX / worldUnitsPerTexel) * worldUnitsPerTexel;
+        glm::mat4 lightView = glm::lookAt(center - sunDir * 1000.0f, center, up);
 
-		worldUnitsPerTexel = (maxY - minY) / shadowSize;
-		minY = std::floor(minY / worldUnitsPerTexel) * worldUnitsPerTexel;
-		maxY = std::floor(maxY / worldUnitsPerTexel) * worldUnitsPerTexel;
-		// --------------------------
+        // Стабилизация мерцания пикселей при движении
+        float worldUnitsPerTexel = (radius * 2.0f) / shadowSize;
+        glm::vec3 centerLightSpace = glm::vec3(lightView * glm::vec4(center, 1.0f));
+        centerLightSpace.x = std::floor(centerLightSpace.x / worldUnitsPerTexel) * worldUnitsPerTexel;
+        centerLightSpace.y = std::floor(centerLightSpace.y / worldUnitsPerTexel) * worldUnitsPerTexel;
 
-		return glm::ortho(minX, maxX, minY, maxY, -500.0f, 500.0f) * lightView;
-	}
+        center = glm::vec3(glm::inverse(lightView) * glm::vec4(centerLightSpace, 1.0f));
+        lightView = glm::lookAt(center - sunDir * 1000.0f, center, up);
+        printf("Cascade[%d] radius = %.1f, texel size = %.3f m\n",
+            1, radius, (radius * 2.0f) / shadowSize);
+        // ТЕПЕРЬ Z-RANGE НОРМАЛЬНЫЙ: от 0.0 до 2000.0
+        // Твой шейдер куллинга больше не будет отсекать тени!
+        return glm::ortho(-radius, radius, -radius, radius, -500.0f, 2000.0f) * lightView;
+    }
     void Render::GlobalGPUCulling(int offset, int count, const glm::mat4& viewProj, const glm::vec3& camPos, bool isShadowPass, CullingShader& cullingshader, Window& window, GLuint hiZTex) {
         if (count == 0) return;
         // --- ПРИВЯЗЫВАЕМ БУФЕРЫ ДЛЯ КУЛЛИНГА ---
@@ -413,6 +497,9 @@ void Render::RebuildBatches(entt::registry& registry) {
 
 
     std::vector<glm::mat4> Render::RenderCSM(Camera& camera, std::map<Mesh*, std::vector<RenderInstance>>& shadowBatches, entt::registry& registry, ShadowShader& shadowshader, CullingShader& cullingshader, Window& window) {
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glPolygonOffset(1.0f, 3.0f); // ИДЕАЛЬНЫЕ ЗНАЧЕНИЯ! Не 24!
+        // Если рябит - увеличивай второе число!
         shadowshader.Activate();
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 10, globalObjectBuffer.ID);
         glEnable(GL_DEPTH_CLAMP);
@@ -420,6 +507,8 @@ void Render::RebuildBatches(entt::registry& registry) {
         static std::vector<glm::mat4> sunMatrices(4, glm::mat4(1.0f));
         ;
         float lastSplit = 0.1f;
+        float cascadeNears[4] = { 0.1f, shadowshader.cascadeSplits[0],
+                           shadowshader.cascadeSplits[1], shadowshader.cascadeSplits[2] };
         for (int i = 0; i < 4; i++) {
             bool shouldUpdate = true;
             if (i == 1 && frameCounter % 2 != 0) shouldUpdate = false;
@@ -442,7 +531,10 @@ void Render::RebuildBatches(entt::registry& registry) {
 
             if (totalStaticShadowInstances > 0) {
                 int staticOffset = totalMainInstances; // Сдвиг для статики
-                GlobalGPUCulling(staticOffset, totalStaticShadowInstances, sunMatrices[i], camera.Position, true, cullingshader, window, 0);
+                CSMGPUCulling(staticOffset, totalStaticShadowInstances,
+                    sunMatrices[i], camera.Position, camera.GetViewMatrix(),
+                    sunDir, cascadeNears[i], shadowshader.cascadeSplits[i],
+                    cullingshader, window);
                 shadowshader.Activate();
                 shadowshader.Set(shadowshader.loc.lightProjection, sunMatrices[i]);
                 for (auto& draw : staticShadowDraws) {
@@ -458,7 +550,10 @@ void Render::RebuildBatches(entt::registry& registry) {
             glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, shadowshader.sunShadowArray, 0, i);
             if (totalDynamicShadowInstances > 0) {
                 int dynamicOffset = totalMainInstances + totalStaticShadowInstances;
-                GlobalGPUCulling(dynamicOffset, totalDynamicShadowInstances, sunMatrices[i], camera.Position, true, cullingshader, window, 0);
+                CSMGPUCulling(dynamicOffset, totalDynamicShadowInstances,
+                    sunMatrices[i], camera.Position, camera.GetViewMatrix(),
+                    sunDir, cascadeNears[i], shadowshader.cascadeSplits[i],
+                    cullingshader, window);
                 shadowshader.Activate();
                 shadowshader.Set(shadowshader.loc.lightProjection, sunMatrices[i]);
                 for (auto& draw : dynamicShadowDraws) {
@@ -470,104 +565,138 @@ void Render::RebuildBatches(entt::registry& registry) {
         }
         shadowshader.staticShadowsDirty = false;
         glDisable(GL_DEPTH_CLAMP);
+        glDisable(GL_POLYGON_OFFSET_FILL); 
         return sunMatrices;
     }
+    void Render::CSMGPUCulling(int offset, int count, const glm::mat4& sunViewProj,
+        const glm::vec3& camPos, const glm::mat4& camView,
+        const glm::vec3& sunDir, float cascadeNear, float cascadeFar,
+        CullingShader& cullingshader, Window& window)
+    {
+        if (count == 0) return;
 
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, globalSphereBuffer.ID);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, globalCommandBuffer.ID);
 
-    void Render::RenderAtlasShadows(Camera& camera, entt::registry& registry, ShadowShader& shadowshader, CullingShader& cullingshader, Window& window) {
-        
-            
+        cullingshader.csmCullingShader.Activate();
+
+        // Frustum плоскости из матрицы солнца
+        auto planes = cullingshader.ExtractFrustumPlanes(sunViewProj);
+        for (int i = 0; i < 6; i++) {
+            glUniform4f(
+                glGetUniformLocation(cullingshader.csmCullingShader.ID,
+                    ("frustumPlanes[" + std::to_string(i) + "]").c_str()),
+                planes[i].normal.x, planes[i].normal.y,
+                planes[i].normal.z, planes[i].distance
+            );
+        }
+
+        glUniformMatrix4fv(glGetUniformLocation(cullingshader.csmCullingShader.ID, "viewProjection"),
+            1, GL_FALSE, glm::value_ptr(sunViewProj));
+        glUniformMatrix4fv(glGetUniformLocation(cullingshader.csmCullingShader.ID, "camView"),
+            1, GL_FALSE, glm::value_ptr(camView));
+        glUniform3f(glGetUniformLocation(cullingshader.csmCullingShader.ID, "camPos"),
+            camPos.x, camPos.y, camPos.z);
+        glUniform3f(glGetUniformLocation(cullingshader.csmCullingShader.ID, "sunDir"),
+            sunDir.x, sunDir.y, sunDir.z);
+        glUniform1f(glGetUniformLocation(cullingshader.csmCullingShader.ID, "cascadeNear"),
+            cascadeNear);
+        glUniform1f(glGetUniformLocation(cullingshader.csmCullingShader.ID, "cascadeFar"),
+            cascadeFar);
+        glUniform1ui(glGetUniformLocation(cullingshader.csmCullingShader.ID, "bufferOffset"),
+            (unsigned int)offset);
+        glUniform1ui(glGetUniformLocation(cullingshader.csmCullingShader.ID, "objectCount"),
+            (unsigned int)count);
+
+        GLuint workGroups = (count + 255) / 256;
+        glDispatchCompute(workGroups, 1, 1);
+        glMemoryBarrier(GL_COMMAND_BARRIER_BIT);
+    }
+
+    void Render::RenderAtlasShadows(Camera& camera, entt::registry& registry,
+        ShadowShader& shadowshader, CullingShader& cullingshader, Window& window)
+    {
         glBindFramebuffer(GL_FRAMEBUFFER, shadowshader.atlasFBO);
         glEnable(GL_SCISSOR_TEST);
 
-        int gridCount = shadowshader.atlasResolution / shadowshader.tileSize;
+        const int minTile = 128;
+        const int atlasRes = shadowshader.atlasResolution; // 4096
+        const int atlasInUnits = atlasRes / minTile;           // 32
 
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 10, globalObjectBuffer.ID);
 
         auto lightView = registry.view<LightComponent, TransformComponent>();
-
         for (auto entity : lightView) {
             auto& light = lightView.get<LightComponent>(entity).light;
             auto& transform = lightView.get<TransformComponent>(entity).transform;
 
             if (!light.enable || !light.castShadows || light.type == LightType::Directional) continue;
             if (light.mobility == LightMobility::Static && light.hasBakedShadows) continue;
+            if (light.shadowSlot < 0) continue; // атлас заполнен
 
-            if (light.type == LightType::Spot) {
-                int slot = light.shadowSlot;
-                if (slot >= gridCount * gridCount) break;
+            int tileSize = light.shadowTileSize; // 512, 256 или 128
+            int unitsPerTile = tileSize / minTile;
 
-                int gridX = slot % gridCount;
-                int gridY = slot / gridCount;
-                glViewport(gridX * shadowshader.tileSize, gridY * shadowshader.tileSize, shadowshader.tileSize, shadowshader.tileSize);
-                glScissor(gridX * shadowshader.tileSize, gridY * shadowshader.tileSize, shadowshader.tileSize, shadowshader.tileSize);
+            // Декодируем пиксельные координаты из слота
+            int slotX = (light.shadowSlot % atlasInUnits) * minTile;
+            int slotY = (light.shadowSlot / atlasInUnits) * minTile;
+
+            auto renderFace = [&](int faceSlotX, int faceSlotY, glm::mat4 lightMatrix) {
+                glViewport(faceSlotX, faceSlotY, tileSize, tileSize);
+                glScissor(faceSlotX, faceSlotY, tileSize, tileSize);
                 glClear(GL_DEPTH_BUFFER_BIT);
 
                 if (totalStaticShadowInstances > 0) {
-                    GlobalGPUCulling(totalMainInstances, totalStaticShadowInstances, light.lightSpaceMatrix, camera.Position, true, cullingshader, window, 0);
+                    GlobalGPUCulling(totalMainInstances, totalStaticShadowInstances,
+                        lightMatrix, camera.Position, true, cullingshader, window, 0);
                     shadowshader.Activate();
-                    shadowshader.Set(shadowshader.loc.lightProjection, light.lightSpaceMatrix);
+                    shadowshader.Set(shadowshader.loc.lightProjection, lightMatrix);
                     for (auto& draw : staticShadowDraws) {
                         draw.mesh->VAO.Bind();
                         glBindBuffer(GL_DRAW_INDIRECT_BUFFER, globalCommandBuffer.ID);
-                        glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, (void*)(draw.commandOffset * sizeof(DrawCommand)), draw.instanceCount, sizeof(DrawCommand));
+                        glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT,
+                            (void*)(draw.commandOffset * sizeof(DrawCommand)), draw.instanceCount, sizeof(DrawCommand));
                     }
                 }
                 if (totalDynamicShadowInstances > 0) {
-                    GlobalGPUCulling(totalMainInstances + totalStaticShadowInstances, totalDynamicShadowInstances, light.lightSpaceMatrix, camera.Position, true, cullingshader, window, 0);
+                    GlobalGPUCulling(totalMainInstances + totalStaticShadowInstances,
+                        totalDynamicShadowInstances, lightMatrix, camera.Position, true, cullingshader, window, 0);
                     shadowshader.Activate();
-                    shadowshader.Set(shadowshader.loc.lightProjection, light.lightSpaceMatrix);
+                    shadowshader.Set(shadowshader.loc.lightProjection, lightMatrix);
                     for (auto& draw : dynamicShadowDraws) {
                         draw.mesh->VAO.Bind();
                         glBindBuffer(GL_DRAW_INDIRECT_BUFFER, globalCommandBuffer.ID);
-                        glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, (void*)(draw.commandOffset * sizeof(DrawCommand)), draw.instanceCount, sizeof(DrawCommand));
+                        glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT,
+                            (void*)(draw.commandOffset * sizeof(DrawCommand)), draw.instanceCount, sizeof(DrawCommand));
                     }
                 }
+                };
+
+            if (light.type == LightType::Spot) {
+                renderFace(slotX, slotY, light.lightSpaceMatrix);
                 if (light.mobility == LightMobility::Static) light.hasBakedShadows = true;
             }
             else if (light.type == LightType::Point) {
-                int startSlot = light.shadowSlot;
-                if (startSlot + 5 >= gridCount * gridCount) break;
-
                 glm::vec3 pos = transform.position;
                 glm::mat4 shadowProj = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, light.radius);
                 glm::mat4 shadowTransforms[6] = {
-                    shadowProj * glm::lookAt(pos, pos + glm::vec3(1, 0, 0), glm::vec3(0, -1, 0)),
-                    shadowProj * glm::lookAt(pos, pos + glm::vec3(-1, 0, 0), glm::vec3(0, -1, 0)),
+                    shadowProj * glm::lookAt(pos, pos + glm::vec3(1, 0, 0), glm::vec3(0,-1, 0)),
+                    shadowProj * glm::lookAt(pos, pos + glm::vec3(-1, 0, 0), glm::vec3(0,-1, 0)),
                     shadowProj * glm::lookAt(pos, pos + glm::vec3(0, 1, 0), glm::vec3(0, 0, 1)),
-                    shadowProj * glm::lookAt(pos, pos + glm::vec3(0, -1, 0), glm::vec3(0, 0, -1)),
-                    shadowProj * glm::lookAt(pos, pos + glm::vec3(0, 0, 1), glm::vec3(0, -1, 0)),
-                    shadowProj * glm::lookAt(pos, pos + glm::vec3(0, 0, -1), glm::vec3(0, -1, 0))
+                    shadowProj * glm::lookAt(pos, pos + glm::vec3(0,-1, 0), glm::vec3(0, 0,-1)),
+                    shadowProj * glm::lookAt(pos, pos + glm::vec3(0, 0, 1), glm::vec3(0,-1, 0)),
+                    shadowProj * glm::lookAt(pos, pos + glm::vec3(0, 0,-1), glm::vec3(0,-1, 0)),
                 };
-
                 for (int face = 0; face < 6; ++face) {
-                    int slot = startSlot + face;
-                    int gridX = slot % gridCount;
-                    int gridY = slot / gridCount;
-                    glViewport(gridX * shadowshader.tileSize, gridY * shadowshader.tileSize, shadowshader.tileSize, shadowshader.tileSize);
-                    glScissor(gridX * shadowshader.tileSize, gridY * shadowshader.tileSize, shadowshader.tileSize, shadowshader.tileSize);
-                    glClear(GL_DEPTH_BUFFER_BIT);
-
-                    if (totalStaticShadowInstances > 0) {
-                        GlobalGPUCulling(totalMainInstances, totalStaticShadowInstances, shadowTransforms[face], camera.Position, true, cullingshader, window, 0);
-                        shadowshader.Activate();
-                        shadowshader.Set(shadowshader.loc.lightProjection, shadowTransforms[face]);
-                        for (auto& draw : staticShadowDraws) {
-                            draw.mesh->VAO.Bind();
-                            glBindBuffer(GL_DRAW_INDIRECT_BUFFER, globalCommandBuffer.ID);
-                            glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, (void*)(draw.commandOffset * sizeof(DrawCommand)), draw.instanceCount, sizeof(DrawCommand));
-                        }
+                    // Каждая грань идёт правее предыдущей
+                    int faceSlotX = slotX + face * tileSize;
+                    int faceSlotY = slotY;
+                    // Если вышли за ширину атласа — переносим на новую строку
+                    if (faceSlotX + tileSize > atlasRes) {
+                        faceSlotX = (faceSlotX) % atlasRes;
+                        faceSlotY += tileSize;
                     }
-                    if (totalDynamicShadowInstances > 0) {
-                        GlobalGPUCulling(totalMainInstances + totalStaticShadowInstances, totalDynamicShadowInstances, shadowTransforms[face], camera.Position, true, cullingshader, window, 0);
-                        shadowshader.Activate();
-                        shadowshader.Set(shadowshader.loc.lightProjection, shadowTransforms[face]);
-                        for (auto& draw : dynamicShadowDraws) {
-                            draw.mesh->VAO.Bind();
-                            glBindBuffer(GL_DRAW_INDIRECT_BUFFER, globalCommandBuffer.ID);
-                            glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, (void*)(draw.commandOffset * sizeof(DrawCommand)), draw.instanceCount, sizeof(DrawCommand));
-                        }
-                    }
+                    renderFace(faceSlotX, faceSlotY, shadowTransforms[face]);
                 }
                 if (light.mobility == LightMobility::Static) light.hasBakedShadows = true;
             }
@@ -577,6 +706,7 @@ void Render::RebuildBatches(entt::registry& registry) {
 
 
     void Render::RenderMainPass(Camera& camera, Window& window, std::map<Mesh*, std::vector<RenderInstance>>& mainBatches, entt::registry& registry, std::vector<glm::mat4>& sunMatrices, LitShader& geometryShader, DefferedShader& deferredComputeShader, ShadowShader& shadowshader, CullingShader& cullingshader, PostProcessingShader& ppShader) {
+        glDisable(GL_POLYGON_OFFSET_FILL);
         GlobalGPUCulling(0, totalMainInstances, camera.GetViewProjectionMatrix(), camera.Position, false, cullingshader, window, ppShader.hiZTexture);
 
         glBindFramebuffer(GL_FRAMEBUFFER, gBufferFBO);
@@ -610,6 +740,8 @@ void Render::RebuildBatches(entt::registry& registry) {
         deferredComputeShader.Set(deferredComputeShader.loc.view, camera.GetViewMatrix());
 
         // ПЕРЕДАЕМ РАЗМЕР ЭКРАНА ОБЯЗАТЕЛЬНО (иначе UV = NaN)
+
+        glUniform3fv(glGetUniformLocation(deferredComputeShader.ID, "sunDir"), 1, glm::value_ptr(sunDir));
         glUniform2f(glGetUniformLocation(deferredComputeShader.ID, "screenSize"), (float)window.width, (float)window.height);
 
         deferredComputeShader.Set(deferredComputeShader.loc.sunLightSpaceMatrices, sunMatrices);
@@ -633,12 +765,16 @@ void Render::RebuildBatches(entt::registry& registry) {
         deferredComputeShader.Set(deferredComputeShader.loc.gNormalRoughness, 15);
 
         glActiveTexture(GL_TEXTURE16);
-        glBindTexture(GL_TEXTURE_2D, gAlbedoAO);
-        deferredComputeShader.Set(deferredComputeShader.loc.gAlbedoAO, 16);
+        glBindTexture(GL_TEXTURE_2D, gAlbedoMetallic);
+        deferredComputeShader.Set(deferredComputeShader.loc.gAlbedoMetallic, 16);
 
         glActiveTexture(GL_TEXTURE17);
         glBindTexture(GL_TEXTURE_2D, gDepth);
         glUniform1i(glGetUniformLocation(deferredComputeShader.ID, "gDepth"), 17);
+
+        glActiveTexture(GL_TEXTURE18);
+        glBindTexture(GL_TEXTURE_2D, gHeightAO);
+        deferredComputeShader.Set(deferredComputeShader.loc.gHeightAO, 18);
 
         // ПРИВЯЗЫВАЕМ ТЕКСТУРУ ДЛЯ ЗАПИСИ
         glBindImageTexture(0, hdrOutputTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
