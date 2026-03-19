@@ -1,0 +1,43 @@
+﻿#pragma once
+#include <string>
+#include <vector>
+#include <glm/glm.hpp>
+
+// 1. Главный заголовок файла модели
+namespace burnhope {
+    struct BHModelHeader {
+        char magic[4] = { 'B', 'H', 'M', 'D' }; // BurnHope MoDel
+        uint32_t version = 1;
+        uint32_t meshCount = 0;
+        uint32_t materialCount = 0; // Теперь всегда будет 0
+        uint32_t reserved[4] = { 0 };
+    };
+
+    // 2. Заголовок для каждого саб-меша
+    struct BHMeshHeader {
+        char name[64] = { 0 };
+        uint32_t materialIndex = 0;
+
+        glm::vec3 aabbMin = glm::vec3(0.0f);
+        glm::vec3 aabbMax = glm::vec3(0.0f);
+        float boundingRadius = 0.0f;
+
+        uint32_t lodCount = 0;
+        uint32_t indexType = 0;
+        uint32_t hasBones = 0;
+        uint32_t meshletCount = 0;
+        uint32_t reserved[4] = { 0 };
+    };
+
+    // 3. Заголовок для каждого LOD-а
+    struct BHLodHeader {
+        uint32_t indexCount = 0;
+        uint32_t reserved[3] = { 0 };
+    };
+
+    class ModelImporter {
+    public:
+        // Теперь нам нужен только путь к исходнику и путь сохранения
+        static bool ImportModel(const std::string& srcPath, const std::string& destPath);
+    };
+}

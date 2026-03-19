@@ -1,35 +1,12 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Source Files">
-      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
-    </Filter>
-    <Filter Include="Header Files">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
-    </Filter>
     <Filter Include="Resource Files">
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
     <Filter Include="Resource Files\Shaders">
       <UniqueIdentifier>{a7ffa985-40f1-492c-85aa-5c3f1e35fbf0}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\Models">
-      <UniqueIdentifier>{f214c4e2-074e-42b4-b5b8-ae18f36a6a54}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\Render">
-      <UniqueIdentifier>{6df08fdb-66db-4bae-b7e1-79e926b3b38e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\GameObjects">
-      <UniqueIdentifier>{89e94dcd-ec9b-41be-82e3-61d230fd590a}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\Utils">
-      <UniqueIdentifier>{574eafda-7848-4e2b-887d-db31cf4d3f83}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\Shaders">
-      <UniqueIdentifier>{90cc15e2-2cb8-42d1-bb54-46e3e0da211b}</UniqueIdentifier>
     </Filter>
     <Filter Include="Resource Files\Shaders\postprocessing">
       <UniqueIdentifier>{ad5ffbf9-4136-4ce6-9f25-045b17e2dc2e}</UniqueIdentifier>
@@ -40,180 +17,141 @@
     <Filter Include="Resource Files\Shaders\optimization">
       <UniqueIdentifier>{1a3c5adf-8264-4d7e-a413-c8dc4bb0881d}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Utils">
-      <UniqueIdentifier>{970d02bb-38fc-470b-9ff8-edf05ca59e78}</UniqueIdentifier>
+    <Filter Include="Vulkan">
+      <UniqueIdentifier>{42407054-b17a-4be1-825e-d356f39a0b59}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Render">
-      <UniqueIdentifier>{79b19f17-5d12-4cfa-9bab-a0e4c93e5264}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\Models">
-      <UniqueIdentifier>{bb479303-87a3-4644-b2f1-7af4ba1ec64f}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\Shaders">
-      <UniqueIdentifier>{1b054790-3917-4c3e-9cba-3dda527e99bd}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\GameObjects">
-      <UniqueIdentifier>{d0b464ee-e889-4f50-b6fa-161c78d49d78}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Resource Files\Shaders\Voxel">
-      <UniqueIdentifier>{925e08b4-cea0-44aa-940c-be17eae10e2f}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\Physics">
-      <UniqueIdentifier>{7d8e0232-5788-463d-8c15-2aa9015caf85}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\Physics">
-      <UniqueIdentifier>{1b66bac1-5cdc-4ecb-ab57-07232858d8c1}</UniqueIdentifier>
+    <Filter Include="Vulkan\Greate">
+      <UniqueIdentifier>{b5850e5b-e274-4054-9853-36a4b129a8bd}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="vulkan\lve_descriptors.cpp">
+      <Filter>Vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan\lve_device.cpp">
+      <Filter>Vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan\lve_model.cpp">
+      <Filter>Vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan\lve_pipeline.cpp">
+      <Filter>Vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan\lve_renderer.cpp">
+      <Filter>Vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan\lve_swap_chain.cpp">
+      <Filter>Vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan\lve_texture.cpp">
+      <Filter>Vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan\Material.cpp">
+      <Filter>Vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan\first_app.cpp">
+      <Filter>Vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan\lve_buffer.cpp">
+      <Filter>Vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan\simple_render_system.cpp">
+      <Filter>Vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan\lve_camera.cpp">
+      <Filter>Vulkan\Greate</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan\lve_window.cpp">
+      <Filter>Vulkan\Greate</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan\lve_game_object.cpp">
+      <Filter>Vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan\ModelImporter.cpp">
+      <Filter>Vulkan\Greate</Filter>
+    </ClCompile>
     <ClCompile Include="Main.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="VBO.cpp">
-      <Filter>Source Files\Utils</Filter>
-    </ClCompile>
-    <ClCompile Include="VAO.cpp">
-      <Filter>Source Files\Utils</Filter>
-    </ClCompile>
-    <ClCompile Include="EBO.cpp">
-      <Filter>Source Files\Utils</Filter>
-    </ClCompile>
-    <ClCompile Include="glad.c">
-      <Filter>Source Files\Utils</Filter>
-    </ClCompile>
-    <ClCompile Include="Camera.cpp">
-      <Filter>Source Files\Render</Filter>
-    </ClCompile>
-    <ClCompile Include="Render.cpp">
-      <Filter>Source Files\Render</Filter>
+      <Filter>Vulkan</Filter>
     </ClCompile>
     <ClCompile Include="stb.cpp">
-      <Filter>Source Files\Utils</Filter>
+      <Filter>Vulkan</Filter>
     </ClCompile>
-    <ClCompile Include="Model.cpp">
-      <Filter>Source Files\Models</Filter>
+    <ClCompile Include="vulkan\lve_gbuffer.cpp">
+      <Filter>Vulkan</Filter>
     </ClCompile>
-    <ClCompile Include="Material.cpp">
-      <Filter>Source Files\Models</Filter>
-    </ClCompile>
-    <ClCompile Include="Mesh.cpp">
-      <Filter>Source Files\Models</Filter>
-    </ClCompile>
-    <ClCompile Include="Texture.cpp">
-      <Filter>Source Files\Models</Filter>
-    </ClCompile>
-    <ClCompile Include="shaderClass.cpp">
-      <Filter>Source Files\Shaders</Filter>
-    </ClCompile>
-    <ClCompile Include="PostProcessingShader.cpp">
-      <Filter>Source Files\Shaders</Filter>
-    </ClCompile>
-    <ClCompile Include="PhysicsEngine.cpp">
-      <Filter>Source Files\Physics</Filter>
-    </ClCompile>
-    <ClCompile Include="DefferedShader.h">
-      <Filter>Header Files\Shaders</Filter>
-    </ClCompile>
-    <ClCompile Include="TextureImporter.cpp">
-      <Filter>Source Files\Models</Filter>
-    </ClCompile>
-    <ClCompile Include="ModelImporter.cpp">
-      <Filter>Source Files\Models</Filter>
-    </ClCompile>
-    <ClCompile Include="TextureStreamer.cpp">
-      <Filter>Source Files\Models</Filter>
+    <ClCompile Include="vulkan\deferred_lighting_system.cpp">
+      <Filter>Vulkan</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Model.h">
-      <Filter>Header Files\Models</Filter>
+    <ClInclude Include="vulkan\lve_buffer.hpp">
+      <Filter>Vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="MeshRenderer.h">
-      <Filter>Header Files\Models</Filter>
+    <ClInclude Include="vulkan\lve_descriptors.hpp">
+      <Filter>Vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="Mesh.h">
-      <Filter>Header Files\Models</Filter>
+    <ClInclude Include="vulkan\lve_device.hpp">
+      <Filter>Vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="Material.h">
-      <Filter>Header Files\Models</Filter>
+    <ClInclude Include="vulkan\lve_frame_info.hpp">
+      <Filter>Vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="Camera.h">
-      <Filter>Header Files\Render</Filter>
+    <ClInclude Include="vulkan\lve_model.hpp">
+      <Filter>Vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="Render.h">
-      <Filter>Header Files\Render</Filter>
+    <ClInclude Include="vulkan\lve_pipeline.hpp">
+      <Filter>Vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="Light.h">
-      <Filter>Header Files\GameObjects</Filter>
+    <ClInclude Include="vulkan\lve_renderer.hpp">
+      <Filter>Vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="GameObject.h">
-      <Filter>Header Files\GameObjects</Filter>
+    <ClInclude Include="vulkan\lve_swap_chain.hpp">
+      <Filter>Vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="Serializer.h">
-      <Filter>Header Files\Render</Filter>
+    <ClInclude Include="vulkan\lve_texture.hpp">
+      <Filter>Vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="SkyAtmosphere.h">
-      <Filter>Header Files\Render</Filter>
+    <ClInclude Include="vulkan\lve_utils.hpp">
+      <Filter>Vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="Texture.h">
-      <Filter>Header Files\Models</Filter>
+    <ClInclude Include="vulkan\Material.hpp">
+      <Filter>Vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="UI.h">
-      <Filter>Header Files\Render</Filter>
+    <ClInclude Include="vulkan\first_app.hpp">
+      <Filter>Vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="Window.h">
-      <Filter>Header Files\Utils</Filter>
+    <ClInclude Include="vulkan\simple_render_system.hpp">
+      <Filter>Vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="Transform.h">
-      <Filter>Header Files\Utils</Filter>
+    <ClInclude Include="vulkan\tiny_obj_loader.h">
+      <Filter>Vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="CullingShader.h">
-      <Filter>Header Files\Shaders</Filter>
+    <ClInclude Include="vulkan\lve_camera.hpp">
+      <Filter>Vulkan\Greate</Filter>
     </ClInclude>
-    <ClInclude Include="LitShader.h">
-      <Filter>Header Files\Shaders</Filter>
+    <ClInclude Include="vulkan\lve_window.hpp">
+      <Filter>Vulkan\Greate</Filter>
     </ClInclude>
-    <ClInclude Include="PostProcessingShader.h">
-      <Filter>Header Files\Shaders</Filter>
+    <ClInclude Include="vulkan\Components.h">
+      <Filter>Vulkan\Greate</Filter>
     </ClInclude>
-    <ClInclude Include="shaderClass.h">
-      <Filter>Header Files\Shaders</Filter>
+    <ClInclude Include="vulkan\lve_game_object.hpp">
+      <Filter>Vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="ShadowShader.h">
-      <Filter>Header Files\Shaders</Filter>
+    <ClInclude Include="vulkan\ModelImporter.h">
+      <Filter>Vulkan\Greate</Filter>
     </ClInclude>
-    <ClInclude Include="EBO.h">
-      <Filter>Header Files\Utils</Filter>
+    <ClInclude Include="vulkan\Light.h">
+      <Filter>Vulkan\Greate</Filter>
     </ClInclude>
-    <ClInclude Include="VAO.h">
-      <Filter>Header Files\Utils</Filter>
+    <ClInclude Include="vulkan\UI.h">
+      <Filter>Vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="VBO.h">
-      <Filter>Header Files\Utils</Filter>
+    <ClInclude Include="vulkan\lve_gbuffer.hpp">
+      <Filter>Vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="VoxelShader.h">
-      <Filter>Header Files\Shaders</Filter>
-    </ClInclude>
-    <ClInclude Include="GLBuffer.h">
-      <Filter>Header Files\Utils</Filter>
-    </ClInclude>
-    <ClInclude Include="GLTexture.h">
-      <Filter>Header Files\Utils</Filter>
-    </ClInclude>
-    <ClInclude Include="PhysicsEngine.h">
-      <Filter>Header Files\Physics</Filter>
-    </ClInclude>
-    <ClInclude Include="Components.h">
-      <Filter>Header Files\GameObjects</Filter>
-    </ClInclude>
-    <ClInclude Include="TextureImporter.h">
-      <Filter>Header Files\Models</Filter>
-    </ClInclude>
-    <ClInclude Include="ModelImporter.h">
-      <Filter>Header Files\Models</Filter>
-    </ClInclude>
-    <ClInclude Include="TextureStreamer.h">
-      <Filter>Header Files\Models</Filter>
+    <ClInclude Include="vulkan\deferred_lighting_system.hpp">
+      <Filter>Vulkan</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -259,15 +197,6 @@
     <None Include="volumetric_inject.comp">
       <Filter>Resource Files\Shaders\postprocessing</Filter>
     </None>
-    <None Include="voxelize.vert">
-      <Filter>Resource Files\Shaders\Voxel</Filter>
-    </None>
-    <None Include="voxelize.geom">
-      <Filter>Resource Files\Shaders\Voxel</Filter>
-    </None>
-    <None Include="voxelize.frag">
-      <Filter>Resource Files\Shaders\Voxel</Filter>
-    </None>
     <None Include="gbuffer.frag">
       <Filter>Resource Files\Shaders\graphic</Filter>
     </None>
@@ -301,9 +230,20 @@
     <None Include="rtgi.comp">
       <Filter>Resource Files\Shaders\graphic</Filter>
     </None>
-    <None Include="ssr.comp" />
     <None Include="csm_culling.comp">
       <Filter>Resource Files\Shaders\optimization</Filter>
+    </None>
+    <None Include="ssr.comp">
+      <Filter>Resource Files\Shaders\postprocessing</Filter>
+    </None>
+    <None Include="..\shaders\gbuffer.vert">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="..\shaders\gbuffer.frag">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="..\shaders\lighting.comp">
+      <Filter>Resource Files</Filter>
     </None>
   </ItemGroup>
 </Project>

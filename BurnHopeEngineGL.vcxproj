@@ -146,7 +146,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
@@ -178,59 +178,55 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Camera.cpp" />
-    <ClCompile Include="DefferedShader.h" />
-    <ClCompile Include="EBO.cpp" />
-    <ClCompile Include="glad.c" />
     <ClCompile Include="Main.cpp" />
-    <ClCompile Include="Material.cpp" />
-    <ClCompile Include="Mesh.cpp" />
-    <ClCompile Include="Model.cpp" />
-    <ClCompile Include="ModelImporter.cpp" />
-    <ClCompile Include="PhysicsEngine.cpp" />
-    <ClCompile Include="PostProcessingShader.cpp" />
-    <ClCompile Include="Render.cpp" />
-    <ClCompile Include="shaderClass.cpp" />
     <ClCompile Include="stb.cpp" />
-    <ClCompile Include="Texture.cpp" />
-    <ClCompile Include="TextureImporter.cpp" />
-    <ClCompile Include="TextureStreamer.cpp" />
-    <ClCompile Include="VAO.cpp" />
-    <ClCompile Include="VBO.cpp" />
+    <ClCompile Include="vulkan\deferred_lighting_system.cpp" />
+    <ClCompile Include="vulkan\first_app.cpp" />
+    <ClCompile Include="vulkan\lve_buffer.cpp" />
+    <ClCompile Include="vulkan\lve_camera.cpp" />
+    <ClCompile Include="vulkan\lve_descriptors.cpp" />
+    <ClCompile Include="vulkan\lve_device.cpp" />
+    <ClCompile Include="vulkan\lve_game_object.cpp" />
+    <ClCompile Include="vulkan\lve_gbuffer.cpp" />
+    <ClCompile Include="vulkan\lve_model.cpp" />
+    <ClCompile Include="vulkan\lve_pipeline.cpp" />
+    <ClCompile Include="vulkan\lve_renderer.cpp" />
+    <ClCompile Include="vulkan\lve_swap_chain.cpp" />
+    <ClCompile Include="vulkan\lve_texture.cpp" />
+    <ClCompile Include="vulkan\lve_window.cpp" />
+    <ClCompile Include="vulkan\Material.cpp" />
+    <ClCompile Include="vulkan\ModelImporter.cpp" />
+    <ClCompile Include="vulkan\simple_render_system.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Camera.h" />
-    <ClInclude Include="Components.h" />
-    <ClInclude Include="EBO.h" />
-    <ClInclude Include="CullingShader.h" />
-    <ClInclude Include="GameObject.h" />
-    <ClInclude Include="GLBuffer.h" />
-    <ClInclude Include="GLTexture.h" />
-    <ClInclude Include="Light.h" />
-    <ClInclude Include="LitShader.h" />
-    <ClInclude Include="Material.h" />
-    <ClInclude Include="Mesh.h" />
-    <ClInclude Include="MeshRenderer.h" />
-    <ClInclude Include="Model.h" />
-    <ClInclude Include="ModelImporter.h" />
-    <ClInclude Include="PhysicsEngine.h" />
-    <ClInclude Include="PostProcessingShader.h" />
-    <ClInclude Include="Render.h" />
-    <ClInclude Include="Serializer.h" />
-    <ClInclude Include="shaderClass.h" />
-    <ClInclude Include="ShadowShader.h" />
-    <ClInclude Include="SkyAtmosphere.h" />
-    <ClInclude Include="Texture.h" />
-    <ClInclude Include="TextureImporter.h" />
-    <ClInclude Include="TextureStreamer.h" />
-    <ClInclude Include="Transform.h" />
-    <ClInclude Include="UI.h" />
-    <ClInclude Include="VAO.h" />
-    <ClInclude Include="VBO.h" />
-    <ClInclude Include="VoxelShader.h" />
-    <ClInclude Include="Window.h" />
+    <ClInclude Include="vulkan\Components.h" />
+    <ClInclude Include="vulkan\deferred_lighting_system.hpp" />
+    <ClInclude Include="vulkan\first_app.hpp" />
+    <ClInclude Include="vulkan\Light.h" />
+    <ClInclude Include="vulkan\lve_buffer.hpp" />
+    <ClInclude Include="vulkan\lve_camera.hpp" />
+    <ClInclude Include="vulkan\lve_descriptors.hpp" />
+    <ClInclude Include="vulkan\lve_device.hpp" />
+    <ClInclude Include="vulkan\lve_frame_info.hpp" />
+    <ClInclude Include="vulkan\lve_game_object.hpp" />
+    <ClInclude Include="vulkan\lve_gbuffer.hpp" />
+    <ClInclude Include="vulkan\lve_model.hpp" />
+    <ClInclude Include="vulkan\lve_pipeline.hpp" />
+    <ClInclude Include="vulkan\lve_renderer.hpp" />
+    <ClInclude Include="vulkan\lve_swap_chain.hpp" />
+    <ClInclude Include="vulkan\lve_texture.hpp" />
+    <ClInclude Include="vulkan\lve_utils.hpp" />
+    <ClInclude Include="vulkan\lve_window.hpp" />
+    <ClInclude Include="vulkan\Material.hpp" />
+    <ClInclude Include="vulkan\ModelImporter.h" />
+    <ClInclude Include="vulkan\simple_render_system.hpp" />
+    <ClInclude Include="vulkan\tiny_obj_loader.h" />
+    <ClInclude Include="vulkan\UI.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\shaders\gbuffer.frag" />
+    <None Include="..\shaders\gbuffer.vert" />
+    <None Include="..\shaders\lighting.comp" />
     <None Include="bloom_blur.comp" />
     <None Include="bloom_threshold.comp" />
     <None Include="C:\Users\Marwinka\Desktop\voxel_mipmap.comp" />
@@ -258,9 +254,6 @@
     <None Include="ssr.comp" />
     <None Include="volumetric_accumulate.comp" />
     <None Include="volumetric_inject.comp" />
-    <None Include="voxelize.frag" />
-    <None Include="voxelize.geom" />
-    <None Include="voxelize.vert" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Import Project="$(QtMsBuild)\qt.targets" Condition="Exists('$(QtMsBuild)\qt.targets')" />
