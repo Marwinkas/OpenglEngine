@@ -5,8 +5,8 @@
 #include "Utils/Window.hpp"
 #include "Utils/Descriptors.hpp"
 #include "Render/Material.hpp"
-#include "Utils/Components.h"
-#include "Utils/UI.h"
+#include "Utils/Components.hpp"
+#include "Utils/UI.hpp"
 #include "Render/Gbuffer.hpp"
 // Подключаем систему рендера (убедись, что название файла совпадает с твоим)
 #include "Render/MainRender.hpp" 

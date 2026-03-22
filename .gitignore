@@ -1,3 +1,5 @@
 BurnHopeEngine/
 x64/
 .vs/
+imgui.ini
+Shaders/**.spv

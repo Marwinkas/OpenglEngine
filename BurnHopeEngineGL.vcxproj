@@ -456,7 +456,7 @@
     <ClInclude Include="Render\Camera.hpp" />
     <ClInclude Include="Render\Deferred.hpp" />
     <ClInclude Include="Render\Gbuffer.hpp" />
-    <ClInclude Include="Render\Light.h" />
+    <ClInclude Include="Render\Light.hpp" />
     <ClInclude Include="Render\MainRender.hpp" />
     <ClInclude Include="Render\Material.hpp" />
     <ClInclude Include="Render\Model.hpp" />
@@ -464,16 +464,15 @@
     <ClInclude Include="Render\shadow.hpp" />
     <ClInclude Include="Render\ShadowRender.hpp" />
     <ClInclude Include="Render\Texture.hpp" />
-    <ClInclude Include="tiny_obj_loader.h" />
     <ClInclude Include="Utils\Buffer.hpp" />
-    <ClInclude Include="Utils\Components.h" />
+    <ClInclude Include="Utils\Components.hpp" />
     <ClInclude Include="Utils\Descriptors.hpp" />
     <ClInclude Include="Utils\Device.hpp" />
     <ClInclude Include="Utils\FrameInfo.hpp" />
     <ClInclude Include="Utils\Pipeline.hpp" />
     <ClInclude Include="Utils\Renderer.hpp" />
     <ClInclude Include="Utils\SwapChain.hpp" />
-    <ClInclude Include="Utils\UI.h" />
+    <ClInclude Include="Utils\UI.hpp" />
     <ClInclude Include="Utils\Utils.hpp" />
     <ClInclude Include="Utils\Window.hpp" />
   </ItemGroup>

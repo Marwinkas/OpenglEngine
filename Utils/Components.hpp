@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 #include <glm/glm.hpp>
-#include "../Render/Light.h"
+#include "../Render/Light.hpp"
 #include "../Render/Model.hpp" // Твоя Vulkan-модель
 #include "../Render/Material.hpp"  // Твои материалы с текстурами
 // 1. Имя и теги (Всё, что нужно для UI и поиска)

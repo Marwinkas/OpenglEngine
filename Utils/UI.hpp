@@ -15,7 +15,7 @@
 #include "imgui.h"
 #include "imgui_internal.h" 
 #include "ImGuizmo.h"
-#include "Components.h" // НАШ НОВЫЙ ФАЙЛ С КОМПОНЕНТАМИ!
+#include "Components.hpp" // НАШ НОВЫЙ ФАЙЛ С КОМПОНЕНТАМИ!
 #include <cstdlib>
 #include <filesystem>
 #include <unordered_map>

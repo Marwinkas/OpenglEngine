@@ -2,7 +2,7 @@
 #include "../Utils/Device.hpp"
 #include "Texture.hpp"
 #include "../Utils/Descriptors.hpp"
-#include "../Utils/Components.h"
+#include "../Utils/Components.hpp"
 #include "Camera.hpp"
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>

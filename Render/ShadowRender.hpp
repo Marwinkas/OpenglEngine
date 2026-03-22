@@ -2,7 +2,7 @@
 #include "../Utils/Device.hpp"
 #include "../Utils/Pipeline.hpp"
 #include "../Utils/Descriptors.hpp"
-#include "../Utils/Components.h"
+#include "../Utils/Components.hpp"
 #include "../Utils/Buffer.hpp"
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>

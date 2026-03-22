@@ -4,7 +4,7 @@
 #include "../Utils/Pipeline.hpp"
 #include "../Utils/Descriptors.hpp"
 #include "../Utils/FrameInfo.hpp"
-#include "../Utils/Components.h" // Твои компоненты (Transform, Mesh)
+#include "../Utils/Components.hpp" // Твои компоненты (Transform, Mesh)
 
 // libs
 #include <entt/entt.hpp>
