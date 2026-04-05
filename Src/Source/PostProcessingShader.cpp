@@ -1,5 +1,5 @@
-﻿#include "PostProcessingShader.h"
-#include "UI.h"
+﻿#include "../Header/PostProcessingShader.h"
+#include "../Header/UI.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glad/glad.h>
@@ -19,18 +19,18 @@ const float rectangleVerticesSSAO[] =
 
 PostProcessingShader::PostProcessingShader(Window& window) {
     // 1. ЗАГРУЗКА ШЕЙДЕРОВ
-    ssaoShader = Shader("ssao.comp");
-    bloomThresholdShader = Shader("bloom_threshold.comp");
-    bloomBlurShader = Shader("bloom_blur.comp");
-    ssaoBlurShader = Shader("ssao_blur.comp");
-    hiZShader = Shader("hiz.comp");
-    volInjectShader = Shader("volumetric_inject.comp");
-    volAccumulateShader = Shader("volumetric_accumulate.comp");
-    SCSSShader = Shader("sscs.comp");
-    SceneColorShader = Shader("scene_color.comp");
-    PostProcessShader = Shader("postprocess.comp");
-    sharpenShader = Shader("framebuffer.vert", "sharpen.frag");
-    rtgiShader = Shader("rtgi.comp");
+    ssaoShader = Shader("Shaders/ssao.comp");
+    bloomThresholdShader = Shader("Shaders/bloom_threshold.comp");
+    bloomBlurShader = Shader("Shaders/bloom_blur.comp");
+    ssaoBlurShader = Shader("Shaders/ssao_blur.comp");
+    hiZShader = Shader("Shaders/hiz.comp");
+    volInjectShader = Shader("Shaders/volumetric_inject.comp");
+    volAccumulateShader = Shader("Shaders/volumetric_accumulate.comp");
+    SCSSShader = Shader("Shaders/sscs.comp");
+    SceneColorShader = Shader("Shaders/scene_color.comp");
+    PostProcessShader = Shader("Shaders/postprocess.comp");
+    sharpenShader = Shader("Shaders/framebuffer.vert", "Shaders/sharpen.frag");
+    rtgiShader = Shader("Shaders/rtgi.comp");
     // =================================================================
     // 2. ГЛОБАЛЬНЫЕ/ПОСТОЯННЫЕ ТЕКСТУРЫ (Туман)
     // =================================================================
@@ -140,7 +140,7 @@ PostProcessingShader::PostProcessingShader(Window& window) {
     // =================================================================
     // 7. СГЛАЖИВАНИЕ TAA (Хранит кадры, поэтому тоже постоянна)
     // =================================================================
-    ssrShader = Shader("ssr.comp");
+    ssrShader = Shader("Shaders/ssr.comp");
 
     glGenTextures(1, &ssrTexture);
     glBindTexture(GL_TEXTURE_2D, ssrTexture);

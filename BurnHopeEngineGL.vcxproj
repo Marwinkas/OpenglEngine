@@ -18,6 +18,62 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Src\Header\Camera.h" />
+    <ClInclude Include="Src\Header\Components.h" />
+    <ClInclude Include="Src\Header\CullingShader.h" />
+    <ClInclude Include="Src\Header\DefferedShader.h" />
+    <ClInclude Include="Src\Header\GameObject.h" />
+    <ClInclude Include="Src\Header\GLBuffer.h" />
+    <ClInclude Include="Src\Header\GLTexture.h" />
+    <ClInclude Include="Src\Header\Light.h" />
+    <ClInclude Include="Src\Header\LitShader.h" />
+    <ClInclude Include="Src\Header\Material.h" />
+    <ClInclude Include="Src\Header\Mesh.h" />
+    <ClInclude Include="Src\Header\MeshRenderer.h" />
+    <ClInclude Include="Src\Header\Model.h" />
+    <ClInclude Include="Src\Header\ModelImporter.h" />
+    <ClInclude Include="Src\Header\PhysicsEngine.h" />
+    <ClInclude Include="Src\Header\PostProcessingShader.h" />
+    <ClInclude Include="Src\Header\Render.h" />
+    <ClInclude Include="Src\Header\Serializer.h" />
+    <ClInclude Include="Src\Header\shaderClass.h" />
+    <ClInclude Include="Src\Header\ShadowShader.h" />
+    <ClInclude Include="Src\Header\SkyAtmosphere.h" />
+    <ClInclude Include="Src\Header\Texture.h" />
+    <ClInclude Include="Src\Header\TextureImporter.h" />
+    <ClInclude Include="Src\Header\TextureStreamer.h" />
+    <ClInclude Include="Src\Header\Transform.h" />
+    <ClInclude Include="Src\Header\VAO.h" />
+    <ClInclude Include="Src\Header\VBO.h" />
+    <ClInclude Include="Src\Header\VoxelShader.h" />
+    <ClInclude Include="Src\Header\Window.h" />
+    <ClInclude Include="Src\Header\EBO.h" />
+    <ClInclude Include="Src\Header\UI.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Src\Source\Camera.cpp" />
+    <ClCompile Include="Src\Source\EBO.cpp" />
+    <ClCompile Include="Src\Source\glad.c" />
+    <ClCompile Include="Src\Source\Main.cpp" />
+    <ClCompile Include="Src\Source\Material.cpp" />
+    <ClCompile Include="Src\Source\Mesh.cpp" />
+    <ClCompile Include="Src\Source\Model.cpp" />
+    <ClCompile Include="Src\Source\ModelImporter.cpp" />
+    <ClCompile Include="Src\Source\PhysicsEngine.cpp" />
+    <ClCompile Include="Src\Source\PostProcessingShader.cpp" />
+    <ClCompile Include="Src\Source\Render.cpp" />
+    <ClCompile Include="Src\Source\shaderClass.cpp" />
+    <ClCompile Include="Src\Source\stb.cpp" />
+    <ClCompile Include="Src\Source\Texture.cpp" />
+    <ClCompile Include="Src\Source\TextureImporter.cpp" />
+    <ClCompile Include="Src\Source\TextureStreamer.cpp" />
+    <ClCompile Include="Src\Source\VAO.cpp" />
+    <ClCompile Include="Src\Source\VBO.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include=".gitignore" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
@@ -25,8 +81,6 @@
     <RootNamespace>YoutubeOpenGL</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
     <ProjectName>BurnHopeEngine</ProjectName>
-    <Keyword>QtVS_v304</Keyword>
-    <QtMsBuild Condition="'$(QtMsBuild)'=='' OR !Exists('$(QtMsBuild)\qt.targets')">$(MSBuildProjectDirectory)\QtMsBuild</QtMsBuild>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -57,33 +111,21 @@
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-  <Import Project="$(QtMsBuild)\qt_defaults.props" Condition="Exists('$(QtMsBuild)\qt_defaults.props')" />
-  <PropertyGroup Label="QtSettings" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" />
-  <PropertyGroup Label="QtSettings" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" />
-  <PropertyGroup Label="QtSettings" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" />
-  <PropertyGroup Label="QtSettings" Condition="'$(Configuration)|$(Platform)'=='Release|x64'" />
-  <Target Name="QtMsBuildNotFound" BeforeTargets="CustomBuild;ClCompile" Condition="!Exists('$(QtMsBuild)\qt.targets') OR !Exists('$(QtMsBuild)\Qt.props')">
-    <Message Importance="High" Text="QtMsBuild: could not locate qt.targets, qt.props; project may not build correctly." />
-  </Target>
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="Shared">
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="$(QtMsBuild)\Qt.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="$(QtMsBuild)\Qt.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="$(QtMsBuild)\Qt.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="$(QtMsBuild)\Qt.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -146,7 +188,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
@@ -177,93 +219,7 @@
       <AdditionalDependencies>opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClCompile Include="Camera.cpp" />
-    <ClCompile Include="DefferedShader.h" />
-    <ClCompile Include="EBO.cpp" />
-    <ClCompile Include="glad.c" />
-    <ClCompile Include="Main.cpp" />
-    <ClCompile Include="Material.cpp" />
-    <ClCompile Include="Mesh.cpp" />
-    <ClCompile Include="Model.cpp" />
-    <ClCompile Include="ModelImporter.cpp" />
-    <ClCompile Include="PhysicsEngine.cpp" />
-    <ClCompile Include="PostProcessingShader.cpp" />
-    <ClCompile Include="Render.cpp" />
-    <ClCompile Include="shaderClass.cpp" />
-    <ClCompile Include="stb.cpp" />
-    <ClCompile Include="Texture.cpp" />
-    <ClCompile Include="TextureImporter.cpp" />
-    <ClCompile Include="TextureStreamer.cpp" />
-    <ClCompile Include="VAO.cpp" />
-    <ClCompile Include="VBO.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="Camera.h" />
-    <ClInclude Include="Components.h" />
-    <ClInclude Include="EBO.h" />
-    <ClInclude Include="CullingShader.h" />
-    <ClInclude Include="GameObject.h" />
-    <ClInclude Include="GLBuffer.h" />
-    <ClInclude Include="GLTexture.h" />
-    <ClInclude Include="Light.h" />
-    <ClInclude Include="LitShader.h" />
-    <ClInclude Include="Material.h" />
-    <ClInclude Include="Mesh.h" />
-    <ClInclude Include="MeshRenderer.h" />
-    <ClInclude Include="Model.h" />
-    <ClInclude Include="ModelImporter.h" />
-    <ClInclude Include="PhysicsEngine.h" />
-    <ClInclude Include="PostProcessingShader.h" />
-    <ClInclude Include="Render.h" />
-    <ClInclude Include="Serializer.h" />
-    <ClInclude Include="shaderClass.h" />
-    <ClInclude Include="ShadowShader.h" />
-    <ClInclude Include="SkyAtmosphere.h" />
-    <ClInclude Include="Texture.h" />
-    <ClInclude Include="TextureImporter.h" />
-    <ClInclude Include="TextureStreamer.h" />
-    <ClInclude Include="Transform.h" />
-    <ClInclude Include="UI.h" />
-    <ClInclude Include="VAO.h" />
-    <ClInclude Include="VBO.h" />
-    <ClInclude Include="VoxelShader.h" />
-    <ClInclude Include="Window.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="bloom_blur.comp" />
-    <None Include="bloom_threshold.comp" />
-    <None Include="C:\Users\Marwinka\Desktop\voxel_mipmap.comp" />
-    <None Include="cluster_grid.comp" />
-    <None Include="combine.frag" />
-    <None Include="csm_culling.comp" />
-    <None Include="culling.comp" />
-    <None Include="gbuffer.vert" />
-    <None Include="gbuffer.frag" />
-    <None Include="hiz.comp" />
-    <None Include="lighting.comp" />
-    <None Include="light_culling.comp" />
-    <None Include="postprocess.comp" />
-    <None Include="rtgi.comp" />
-    <None Include="scene_color.comp" />
-    <None Include="sharpen.frag" />
-    <None Include="sky.frag" />
-    <None Include="sky.vert" />
-    <None Include="ssao.comp" />
-    <None Include="framebuffer.vert" />
-    <None Include="shadowMap.frag" />
-    <None Include="shadowMap.vert" />
-    <None Include="ssao_blur.comp" />
-    <None Include="sscs.comp" />
-    <None Include="ssr.comp" />
-    <None Include="volumetric_accumulate.comp" />
-    <None Include="volumetric_inject.comp" />
-    <None Include="voxelize.frag" />
-    <None Include="voxelize.geom" />
-    <None Include="voxelize.vert" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <Import Project="$(QtMsBuild)\qt.targets" Condition="Exists('$(QtMsBuild)\qt.targets')" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>

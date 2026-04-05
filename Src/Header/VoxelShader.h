@@ -15,7 +15,7 @@ public:
     struct {
         GLint gridSize, gridMin, gridMax, sunDir, model, albedoMap;
     } loc;
-    VoxelShader() : Shader("voxelize.vert", "voxelize.frag", "voxelize.geom") {
+    VoxelShader() : Shader("Shaders/voxelize.vert", "Shaders/voxelize.frag", "Shaders/voxelize.geom") {
         Init();
     }
     void Init() override {

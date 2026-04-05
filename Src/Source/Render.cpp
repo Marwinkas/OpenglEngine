@@ -1,7 +1,7 @@
-﻿	#include "Render.h"
-	#include "UI.h" 
-	#include "CullingShader.h"
-	#include "DefferedShader.h"
+﻿	#include "../Header/Render.h"
+	#include "../Header/UI.h" 
+	#include "../Header/CullingShader.h"
+	#include "../Header/DefferedShader.h"
 	#include "Tracy/tracy/Tracy.hpp"
 
 void Render::RebuildBatches(entt::registry& registry) {

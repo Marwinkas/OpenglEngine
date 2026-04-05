@@ -1,8 +1,8 @@
-﻿#include "Model.h"
+﻿#include "../Header/Model.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <filesystem>
-#include <ModelImporter.h>
+#include "../Header/ModelImporter.h"
 
 using json = nlohmann::json;
 namespace fs = std::filesystem;

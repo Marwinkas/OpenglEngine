@@ -35,7 +35,7 @@ public:
     struct {
         GLint zFar, gridDimX, zNear, gridDimY, gridDimZ, projection;
     } loc;
-    ClusterGridShader() : Shader("cluster_grid.comp") {
+    ClusterGridShader() : Shader("Shaders/cluster_grid.comp") {
         Init();
     }
     void Init() override {
@@ -49,7 +49,7 @@ public:
 };
 class LightCullingShader : public Shader {
 public:
-    LightCullingShader() : Shader("light_culling.comp") {
+    LightCullingShader() : Shader("Shaders/light_culling.comp") {
         Init();
     }
     void Init() override {
@@ -65,7 +65,7 @@ public:
         GLint lodOffset[3];
         GLint frustumPlanes[6];
     } loc;
-    CullingShader() : Shader("culling.comp") {
+    CullingShader() : Shader("Shaders/culling.comp") {
         Init();
         ssboObjects = GLBuffer(GL_SHADER_STORAGE_BUFFER, sizeof(BoundingSphere), nullptr, GL_DYNAMIC_DRAW, 0);
         ssboCommands = GLBuffer(GL_SHADER_STORAGE_BUFFER, sizeof(DrawCommand), nullptr, GL_DYNAMIC_DRAW, 1);
@@ -89,7 +89,7 @@ public:
         loc.viewProjection = GetLoc("viewProjection");
         loc.screenSize = GetLoc("screenSize");
         loc.hiZTexture = GetLoc("hiZTexture");
-        csmCullingShader = Shader("csm_culling.comp");
+        csmCullingShader = Shader("Shaders/csm_culling.comp");
 
     }
     LightCullingShader lightCullingShader;

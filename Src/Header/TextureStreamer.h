@@ -7,7 +7,7 @@
 #include <vector>
 #include <glad/glad.h>
 #include "Texture.h" // Твой класс BHTexHeader
-#include <TextureImporter.h>
+#include "TextureImporter.h"
 
 // Задача на загрузку одной текстуры
 struct TextureLoadTask {

@@ -30,7 +30,7 @@ public:
 
         return path;
     }
-    LitShader() : Shader("gbuffer.vert", "gbuffer.frag") {
+    LitShader() : Shader("Shaders/gbuffer.vert", "Shaders/gbuffer.frag") {
         Init();
     }
 

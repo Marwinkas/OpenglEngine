@@ -1,7 +1,7 @@
-﻿#include"Texture.h"
+﻿#include"../Header/Texture.h"
 #include <stdexcept>
 #include <stdexcept>
-#include <TextureImporter.h>
+#include "../Header/TextureImporter.h"
 #define GL_COMPRESSED_RGB_S3TC_DXT1_EXT                   0x83F0
 #define GL_COMPRESSED_RGBA_S3TC_DXT1_EXT                  0x83F1
 #define GL_COMPRESSED_RGBA_S3TC_DXT3_EXT                  0x83F2

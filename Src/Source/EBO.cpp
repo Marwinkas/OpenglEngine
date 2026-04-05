@@ -1,4 +1,4 @@
-#include"EBO.h"
+#include "../Header/EBO.h"
 EBO::EBO(std::vector<GLuint>& indices)
 {
 	glGenBuffers(1, &ID);

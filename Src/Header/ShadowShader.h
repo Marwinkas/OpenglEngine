@@ -10,7 +10,7 @@ public:
     struct {
         GLint lightProjection;
     } loc;
-    ShadowShader() : Shader("shadowMap.vert", "shadowMap.frag") {
+    ShadowShader() : Shader("Shaders/shadowMap.vert", "Shaders/shadowMap.frag") {
         Init();
     }
     unsigned int atlasFBO;

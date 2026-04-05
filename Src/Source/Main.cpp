@@ -2,25 +2,25 @@
 namespace fs = std::filesystem;
 #include <windows.h>
 #include <string>
-#include"Model.h"
-#include"GameObject.h"
-#include "LitShader.h"
-#include "ShadowShader.h"
-#include "PostProcessingShader.h"
+#include"../Header/Model.h"
+#include"../Header/GameObject.h"
+#include "../Header/LitShader.h"
+#include "../Header/ShadowShader.h"
+#include "../Header/PostProcessingShader.h"
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 #include <ImGuizmo.h>
-#include "Window.h"
+#include "../Header/Window.h"
 #include <map>
 #include <nlohmann/json.hpp>
-#include "UI.h"
-#include "Render.h"
-#include "Serializer.h"
-#include "CullingShader.h"
-#include "PhysicsEngine.h" 
-#include "DefferedShader.h"
-#include <TextureStreamer.h>
+#include "../Header/UI.h"
+#include "../Header/Render.h"
+#include "../Header/Serializer.h"
+#include "../Header/CullingShader.h"
+#include "../Header/PhysicsEngine.h" 
+#include "../Header/DefferedShader.h"
+#include "../Header/TextureStreamer.h"
 using namespace entt;
 std::vector <GameObject> Objects;
 std::vector <Material> material;
@@ -56,7 +56,7 @@ int main()
     try {
         // Устанавливаем кодировку вывода в UTF-8 (код 65001)
 
-        Window window = Window(1280,720,"BurnhopeEngine");
+        Window window = Window();
         Objects.reserve(1000);
      
         // Проверяем пути
@@ -125,9 +125,7 @@ int main()
             if (deltaTime > 0.1f) deltaTime = 0.1f;
             glEnable(GL_DEPTH_TEST);
             glEnable(GL_CULL_FACE);
-            if (!ImGuizmo::IsUsing() && !ImGuizmo::IsOver() && !ImGui::GetIO().WantCaptureMouse) {
-                camera.Inputs(window.window, deltaTime);
-            }
+            camera.Inputs(window.window, deltaTime);
             camera.taaFrameIndex++;
             camera.updateMatrix(45.0f, 0.1f, 1000);
             static bool f5Pressed = false;

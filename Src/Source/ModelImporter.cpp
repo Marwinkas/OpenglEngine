@@ -1,5 +1,5 @@
-﻿#include "ModelImporter.h"
-#include "Components.h" // Для struct Vertex
+﻿#include "../Header/ModelImporter.h"
+#include "../Header/Components.h" // Для struct Vertex
 #include <iostream>
 #include <fstream>
 #include <filesystem>

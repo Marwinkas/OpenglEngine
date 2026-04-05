@@ -11,7 +11,7 @@ public:
     Shader skyShader;
     unsigned int VAO, VBO;
     SkyAtmosphere() {
-        skyShader = Shader("sky.vert", "sky.frag");
+        skyShader = Shader("Shaders/sky.vert", "Shaders/sky.frag");
         float skyboxVertices[] = {
             -1.0f,  1.0f, -1.0f,
             -1.0f, -1.0f, -1.0f,

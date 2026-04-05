@@ -1,5 +1,5 @@
-﻿#include "Camera.h"
-#include "PhysicsEngine.h" // Подключаем физику именно здесь!
+﻿#include "../Header/Camera.h"
+#include "../Header/PhysicsEngine.h" // Подключаем физику именно здесь!
 Camera::Camera(int width, int height, glm::vec3 position)
 {
     Camera::width = width;
