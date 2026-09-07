@@ -94,6 +94,8 @@ namespace burnhope::ui {
         void TextClippedCentered(std::string_view text, float maxWidth, Color color = kTheme.text);
         void TextColored(Color color, std::string_view text) { Text(text, color); }
         bool Button(std::string_view label, glm::vec2 size = {0, 0});
+        bool ButtonColored(std::string_view label, glm::vec2 size, Color bg, Color hover, Color active,
+                           Color text = kTheme.text);
         bool Checkbox(std::string_view label, bool* value);
         bool InputText(std::string_view label, std::string& value, size_t maxLength = 256, glm::vec2 size = {0, 0});
         bool Selectable(std::string_view label, bool selected, glm::vec2 size = {0, 0});

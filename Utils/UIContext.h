@@ -385,6 +385,7 @@ namespace burnhope {
         bool isCut = false;
         std::string renamingPath = "";
         std::string requestActivateWindow;
+        bool requestSaveScene = false;
         // Last material opened in the editor. Selecting textures/meshes in
         // Content Browser must not unload it — only another .bhmat/.json does.
         std::string activeMaterialPath;

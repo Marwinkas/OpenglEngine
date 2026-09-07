@@ -349,6 +349,10 @@ namespace burnhope {
             }
 
             if (m_Input.Ctrl() && m_Input.KeyPressed(SDL_SCANCODE_S)) m_SceneController.SaveScene();
+            if (m_Context.requestSaveScene) {
+                m_SceneController.SaveScene();
+                m_Context.requestSaveScene = false;
+            }
             if (m_Input.Ctrl() && m_Input.KeyPressed(SDL_SCANCODE_O)) m_SceneBrowser.Open();
         }
 

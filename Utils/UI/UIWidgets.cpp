@@ -447,6 +447,24 @@ bool UIWidgets::Button(std::string_view label, glm::vec2 size) {
     return clicked;
 }
 
+bool UIWidgets::ButtonColored(std::string_view label, glm::vec2 size, Color bg, Color hover, Color active, Color text) {
+    uint64_t id = CurrentID(label);
+    glm::vec2 sz = size;
+    std::string_view vis = VisibleLabel(label);
+    if (sz.x <= 0) sz.x = TextWidth(vis) + 18.0f;
+    if (sz.y <= 0) sz.y = m_RowHeight;
+    Rect r = NextItemRect(sz);
+
+    bool clicked = InvisibleButton(id, r);
+    Color fill = m_Input.IsActive(id) ? active : (m_Input.IsHot(id) ? hover : bg);
+    DrawQuad(r, fill, 5.0f);
+    float textW = TextWidth(vis);
+    DrawLabel({r.x + (r.w - textW) * 0.5f, r.y, std::min(textW, r.w), r.h}, vis, text);
+
+    Advance({r.w, r.h});
+    return clicked;
+}
+
 bool UIWidgets::TabItem(std::string_view label, bool selected, float height) {
     uint64_t id = CurrentID(label);
     float w = TextWidth(label) + 22.0f;
